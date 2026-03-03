@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tyk-gateway
+  namespace: tyk
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tyk-gateway
+  template:
+    metadata:
+      labels:
+        app: tyk-gateway
+    spec:
+      containers:
+      - name: tyk-gateway
+        image: tykio/tyk-gateway:v5.3.0
+        ports:
+        - containerPort: 8080
+        env:
+        - name: TYK_GW_SECRET
+          value: "foo"
+        - name: TYK_GW_LISTENPORT
+          value: "8080"
+        - name: TYK_GW_REDIS_HOST
+          value: "tyk-redis"
+        - name: TYK_GW_REDIS_PORT
+          value: "6379"
+        volumeMounts:
+        - name: tyk-api-definitions
+          mountPath: /opt/tyk-gateway/apps
+      volumes:
+      - name: tyk-api-definitions
+        configMap:
+          name: gotenberg-api-definition
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tyk-gateway
+  namespace: tyk
+spec:
+  selector:
+    app: tyk-gateway
+  ports:
+  - port: 8080
+    targetPort: 8080
