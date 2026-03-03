@@ -11,13 +11,15 @@ data:
     {
       "name": "Gotenberg PDF API",
       "api_id": "gotenberg-v1",
+      "org_id": "default",
       "use_keyless": true,
       "active": true,
       "version_data": {
         "not_versioned": true,
         "versions": {
           "Default": {
-            "name": "Default"
+            "name": "Default",
+            "use_extended_paths": true
           }
         }
       },
