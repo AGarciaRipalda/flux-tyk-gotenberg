@@ -23,9 +23,11 @@ spec:
           value: "foo"
         - name: TYK_GW_LISTENPORT
           value: "8080"
-        - name: TYK_GW_REDIS_HOST
+        - name: TYK_GW_STORAGE_TYPE
+          value: "redis"
+        - name: TYK_GW_STORAGE_HOST
           value: "tyk-redis"
-        - name: TYK_GW_REDIS_PORT
+        - name: TYK_GW_STORAGE_PORT
           value: "6379"
         volumeMounts:
         - name: tyk-api-definitions
