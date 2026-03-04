@@ -12,7 +12,8 @@ data:
       "name": "Gotenberg PDF API",
       "api_id": "gotenberg-v1",
       "org_id": "default",
-      "use_keyless": true,
+      "use_keyless": false,
+      "use_standard_auth": true,
       "active": true,
       "version_data": {
         "not_versioned": true,
