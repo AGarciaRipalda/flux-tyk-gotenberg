@@ -8,6 +8,7 @@ This project provides a GitOps-based Kubernetes deployment using [Flux](https://
   - `gotenberg/`: Deployments and services for the Gotenberg PDF converter.
   - `tyk/`: Deployments and services for the Tyk API Gateway and Redis.
   - `tyk-apis/`: Tyk API configurations (ConfigMaps).
+  - `health-check/`: CronJob that periodically verifies the Tyk-Gotenberg pipeline.
 - `clusters/my-cluster/`: Flux kustomization manifests connecting the GitHub repository to the local cluster deployment.
 
 ---
@@ -53,6 +54,12 @@ Instead of hardcoding APIs into the Tyk Gateway, APIs are defined as Kubernetes 
   - Currently configured as requiring an authentication token (secured API, `use_keyless: false`).
   - The `tyk-gateway` Deployment mounts this ConfigMap into the `/opt/tyk-gateway/apps` directory, allowing Tyk to discover the API upon startup.
 
+#### 4. Health Check (`apps/health-check`)
+A Kubernetes CronJob that periodically validates the end-to-end PDF generation pipeline.
+- **CronJob**: Runs every 5 minutes (`*/5 * * * *`) using the `curlimages/curl` image.
+- **Functionality**: Mints a short-lived API key from Tyk using the admin secret, sends a request to convert a dummy URL to PDF via the Gateway, and verifies that the response is HTTP 200 OK. Exit code reports success (0) or failure (1).
+- **Namespace**: `health-check`
+
 ### GitOps Workflow (Flux CD)
 
 ![GitOps Workflow Diagram](assets/gitops_workflow.png)
@@ -63,6 +70,7 @@ Three specific `Kustomization` resources drive the synchronization every 1 minut
 1. **`infra-tyk-sync.yaml`**: Targets `./apps/tyk/` to deploy the Tyk Gateway and Redis infrastructure.
 2. **`apps-gotenberg-sync.yaml`**: Targets `./apps/gotenberg/` to deploy the PDF conversion engine.
 3. **`tyk-apis-sync.yaml`**: Targets `./apps/tyk-apis/` to inject the API definitions into the `tyk` namespace.
+4. **`health-check-sync.yaml`**: Targets `./apps/health-check/` to deploy the validation CronJob. It is configured to depend on both the `infra-tyk` and `apps-gotenberg` Kustomizations to ensure the pipeline is deployed before checks run.
 
 *Note: Since these syncs happen in parallel or sequentially depending on Flux's controller loops, there may occasionally be a race condition where the Tyk Gateway boots up before the API ConfigMap is injected. A manual rollout restart of the Tyk deployment resolves this (as detailed in the README).*
 
