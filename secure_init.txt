@@ -1,0 +1,72 @@
+ The Daily Ignition Sequence
+(Run this when you open your laptop and want to generate a PDF)
+
+1. Verify the Engine is Running
+Make sure Flux has automatically spun up all your pods (Tyk, Redis, and Gotenberg) and that they say 1/1 Running:
+
+Bash
+kubectl get pods -A | grep -E "tyk|gotenberg"
+2. Open the Bridge (Terminal 1)
+Open the direct tunnel from your Mac into the Tyk Gateway pod. (Leave this terminal running in the background!)
+
+Bash
+kubectl port-forward deployment/tyk-gateway 8080:8080 -n tyk
+3. Mint Your VIP Key (Terminal 2)
+Because the API is locked down, generate a fresh access token using your gateway admin secret (foo):
+
+Bash
+curl -X POST -H "x-tyk-authorization: foo" -s \
+-H "Content-Type: application/json" \
+-d '{
+  "allowance": 1000,
+  "rate": 100,
+  "per": 60,
+  "expires": -1,
+  "quota_max": -1,
+  "org_id": "default",
+  "access_rights": {
+    "gotenberg-v1": {
+      "api_id": "gotenberg-v1",
+      "api_name": "Gotenberg PDF API",
+      "versions": ["Default"]
+    }
+  }
+}' http://localhost:8080/tyk/keys/create
+(Copy the long alphanumeric string it gives you next to "key":)
+
+4. The Golden Request (Terminal 2)
+Fire your PDF rendering command through the Gateway, passing your new key in the Authorization header:
+
+Bash
+curl -v -X POST http://localhost:8080/pdf/forms/chromium/convert/url \
+  -H "Authorization: YOUR_NEW_KEY_HERE" \
+  -F url="https://google.com" \
+  -o daily_pdf.pdf
+5. View the Output
+
+Bash
+open daily_pdf.pdf
+🚨 The "Total Disaster" Rebuild Guide
+(Run this ONLY if you completely delete your local Kubernetes cluster and need to rebuild from absolute zero)
+
+1. Reinstall Flux and Link to GitHub:
+
+Bash
+flux bootstrap github \
+  --owner=AGarciaRipalda \
+  --repository=flux-tyk-gotenberg \
+  --branch=main \
+  --path=./clusters/my-cluster \
+  --personal
+2. Watch the cluster rebuild itself:
+
+Bash
+flux get kustomizations -w
+(Wait until everything says True, then press Ctrl + C).
+
+3. Fix the Tyk Startup Race Condition:
+Because Tyk boots up faster than Kubernetes can inject its configuration files, force it to restart so it reads your gotenberg-api.json and connects to Redis:
+
+Bash
+kubectl rollout restart deployment tyk-gateway -n tyk
+(Wait 15 seconds, then follow the "Daily Ignition Sequence" above!)

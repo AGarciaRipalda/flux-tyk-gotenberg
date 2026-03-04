@@ -50,7 +50,7 @@ Instead of hardcoding APIs into the Tyk Gateway, APIs are defined as Kubernetes 
   - Defines an API with the ID `gotenberg-v1`.
   - Listens on the path `/pdf/`.
   - Proxies traffic to the internal Gotenberg service using the fully qualified domain name (FQDN): `http://gotenberg.gotenberg.svc.cluster.local:3000/`.
-  - Currently configured as `use_keyless: true` (open API, no authentication required).
+  - Currently configured as requiring an authentication token (secured API, `use_keyless: false`).
   - The `tyk-gateway` Deployment mounts this ConfigMap into the `/opt/tyk-gateway/apps` directory, allowing Tyk to discover the API upon startup.
 
 ### GitOps Workflow (Flux CD)
@@ -84,48 +84,69 @@ From a technical point of view, when a user makes a request to convert a PDF, th
 
 Here is the official, battle-tested daily cheat sheet for interacting with this project.
 
-### Scenario A: The "Daily Routine"
+### The Daily Ignition Sequence
+*(Run this when you open your laptop and want to generate a PDF)*
 
-If your computer went to sleep or restarted, but your local Kubernetes cluster (Rancher/Docker) is running, Flux automatically keeps your apps alive. You just need to open the door and test it.
-
-**1. Check if the cluster is awake:**
+**1. Verify the Engine is Running**
+Make sure Flux has automatically spun up all your pods (Tyk, Redis, and Gotenberg) and that they say `1/1 Running`:
 
 ```bash
 kubectl get pods -A | grep -E "tyk|gotenberg"
 ```
-*(Ensure tyk-gateway, tyk-redis, and gotenberg all say 1/1 Running).*
 
-**2. Open the bridge to your localhost (Mac/Windows):**
-
-Because your gateway lives safely isolated inside the Kubernetes cluster, you need to open a direct tunnel from your localhost into the Tyk pod. Run this in your first terminal window:
+**2. Open the Bridge (Terminal 1)**
+Open the direct tunnel from your Mac into the Tyk Gateway pod. *(Leave this terminal running in the background!)*
 
 ```bash
 kubectl port-forward deployment/tyk-gateway 8080:8080 -n tyk
 ```
-*(Crucial: Leave this terminal window open and running. If you close it or press Ctrl + C, the bridge collapses!)*
 
-**3. Test the API:**
+**3. Mint Your VIP Key (Terminal 2)**
+Because the API is locked down, generate a fresh access token using your gateway admin secret (`foo`):
 
-Open a brand new terminal tab (while the bridge is running in the background) and fire off your PDF conversion request:
+```bash
+curl -X POST -H "x-tyk-authorization: foo" -s \
+-H "Content-Type: application/json" \
+-d '{
+  "allowance": 1000,
+  "rate": 100,
+  "per": 60,
+  "expires": -1,
+  "quota_max": -1,
+  "org_id": "default",
+  "access_rights": {
+    "gotenberg-v1": {
+      "api_id": "gotenberg-v1",
+      "api_name": "Gotenberg PDF API",
+      "versions": ["Default"]
+    }
+  }
+}' http://localhost:8080/tyk/keys/create
+```
+*(Copy the long alphanumeric string it gives you next to "key":)*
+
+**4. The Golden Request (Terminal 2)**
+Fire your PDF rendering command through the Gateway, passing your new key in the `Authorization` header:
 
 ```bash
 curl -v -X POST http://localhost:8080/pdf/forms/chromium/convert/url \
+  -H "Authorization: YOUR_NEW_KEY_HERE" \
   -F url="https://google.com" \
-  -o daily_test.pdf
+  -o daily_pdf.pdf
+```
 
-# Open the downloaded file (on MacOS: open, on Windows: Start or double click)
-# open daily_test.pdf
+**5. View the Output**
+
+```bash
+open daily_pdf.pdf
 ```
 
 ---
 
-### Scenario B: The "Total Rebuild"
+### 🚨 The "Total Disaster" Rebuild Guide
+*(Run this ONLY if you completely delete your local Kubernetes cluster and need to rebuild from absolute zero)*
 
-If you ever wipe your cluster, get a new computer, or accidentally destroy your setup, this is exactly how you rebuild the entire architecture in 3 minutes using the code pushed to this repository.
-
-**1. Install Flux and Link to GitHub:**
-
-This installs the controllers and tells them to read your existing `flux-tyk-gotenberg` repo.
+**1. Reinstall Flux and Link to GitHub:**
 
 ```bash
 flux bootstrap github \
@@ -136,21 +157,17 @@ flux bootstrap github \
   --personal
 ```
 
-**2. Watch the Magic Happen:**
+**2. Watch the cluster rebuild itself:**
 
 ```bash
 flux get kustomizations -w
 ```
-*(Wait until all rows say True. Press Ctrl + C to exit).*
+*(Wait until everything says True, then press Ctrl + C).*
 
-**3. FIX THE RACE CONDITION (Crucial Step!):**
-
-Tyk might boot up too fast and miss the API ConfigMap. Force Tyk to restart so it reads the configuration file:
+**3. Fix the Tyk Startup Race Condition:**
+Because Tyk boots up faster than Kubernetes can inject its configuration files, force it to restart so it reads your `gotenberg-api.json` and connects to Redis:
 
 ```bash
 kubectl rollout restart deployment tyk-gateway -n tyk
 ```
-
-**4. Open the Bridge and Test:**
-
-Follow the steps in Scenario A (Daily Routine) to open the port-forward and test the conversion.
+*(Wait 15 seconds, then follow the "Daily Ignition Sequence" above!)*
