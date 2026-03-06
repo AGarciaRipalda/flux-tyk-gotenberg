@@ -288,11 +288,18 @@ open http://localhost:9090/dashboard
 ### Usar la API REST
 
 ```bash
-# Crear un cliente
+# Crear un cliente (con Admin Token)
 curl -X POST http://localhost:9090/api/clients \
   -H "Authorization: Bearer admin-secret" \
   -H "Content-Type: application/json" \
   -d '{"name":"Acme Corp","email":"admin@acme.com","plan":"pro"}'
+
+# --- USANDO EL SERVICIO COMO CLIENTE ---
+# Generar un PDF consumiendo Tyk con la llave generada (empieza por gm_...)
+curl -X POST http://localhost:8080/pdf/forms/chromium/convert/url \
+  -H "Authorization: gm_a83b2...API_KEY_DEL_CLIENTE" \
+  -F url="https://example.com" \
+  -o output.pdf
 
 # Listar clientes
 curl -H "Authorization: Bearer admin-secret" \

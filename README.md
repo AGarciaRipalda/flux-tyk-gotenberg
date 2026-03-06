@@ -273,7 +273,7 @@ curl -X POST -H "x-tyk-authorization: foo" -s \
 
 # 2. Use the key to convert a URL to PDF
 curl -X POST http://localhost:8080/pdf/forms/chromium/convert/url \
-  -H "Authorization: <YOUR_KEY>" \
+  -H "Authorization: gm_a83b2...YOUR_CLIENT_KEY" \
   -F url="https://example.com" \
   -o output.pdf
 ```
