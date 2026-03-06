@@ -4,6 +4,14 @@
   "org_id": "default",
   "use_keyless": false,
   "use_standard_auth": true,
+  "auth": {
+    "auth_header_name": "Authorization",
+    "use_param": false,
+    "use_cookie": false,
+    "param_name": "",
+    "cookie_name": ""
+  },
+  "strip_auth_data": true,
   "active": true,
   "version_data": {
     "not_versioned": true,

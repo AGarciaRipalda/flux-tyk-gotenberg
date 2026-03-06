@@ -19,7 +19,7 @@ type DashboardHandler struct {
 	usageSvc  *services.UsageService
 	healthSvc *services.HealthService
 	db        *database.DB
-	templates *template.Template
+	templates map[string]*template.Template
 }
 
 func NewDashboardHandler(
@@ -61,6 +61,18 @@ func NewDashboardHandler(
 				return "badge-free"
 			}
 		},
+		"statusClass": func(status string) string {
+			if status == "healthy" {
+				return "status-active"
+			}
+			return "status-inactive"
+		},
+		"dotClass": func(status string) string {
+			if status == "healthy" {
+				return "dot-green"
+			}
+			return "dot-red"
+		},
 		"percentage": func(used, limit int) int {
 			if limit <= 0 {
 				return 0
@@ -73,14 +85,23 @@ func NewDashboardHandler(
 		},
 	}
 
-	tmpl := template.Must(template.New("").Funcs(funcMap).ParseGlob(filepath.Join(templateDir, "*.html")))
+	templates := make(map[string]*template.Template)
+	pages := []string{"dashboard.html", "clients.html", "client_detail.html", "client_form.html", "health_page.html"}
+	layoutPath := filepath.Join(templateDir, "layout.html")
+
+	for _, page := range pages {
+		pagePath := filepath.Join(templateDir, page)
+		// Create a separate template instance for each page to avoid 'content' block clashing
+		tmpl := template.Must(template.New(page).Funcs(funcMap).ParseFiles(layoutPath, pagePath))
+		templates[page] = tmpl
+	}
 
 	return &DashboardHandler{
 		clientSvc: clientSvc,
 		usageSvc:  usageSvc,
 		healthSvc: healthSvc,
 		db:        db,
-		templates: tmpl,
+		templates: templates,
 	}
 }
 
@@ -180,9 +201,20 @@ func (h *DashboardHandler) ClientDelete(w http.ResponseWriter, r *http.Request) 
 	http.Redirect(w, r, "/dashboard/clients", http.StatusSeeOther)
 }
 
+func (h *DashboardHandler) HealthPage(w http.ResponseWriter, r *http.Request) {
+	health := h.healthSvc.GetFullHealth(r.Context(), h.db)
+	h.render(w, "health_page.html", health)
+}
+
 func (h *DashboardHandler) render(w http.ResponseWriter, name string, data interface{}) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := h.templates.ExecuteTemplate(w, name, data); err != nil {
+	tmpl, ok := h.templates[name]
+	if !ok {
+		log.Printf("Template not found: %s", name)
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
+	if err := tmpl.ExecuteTemplate(w, name, data); err != nil {
 		log.Printf("Template error: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}

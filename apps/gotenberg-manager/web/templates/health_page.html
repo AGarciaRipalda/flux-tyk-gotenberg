@@ -1,0 +1,77 @@
+{{define "health_page.html"}}
+{{template "layout.html" .}}
+{{end}}
+
+{{define "content"}}
+<div class="page-header">
+    <h1>System Health</h1>
+    <p class="subtitle">Platform Services Monitoring</p>
+</div>
+
+<div class="health-banner {{statusColor .Status}}">
+    <div class="health-indicator"></div>
+    <div class="health-info">
+        <strong style="font-size: 16px;">Platform Status: {{.Status}}</strong>
+        <span>Last updated: {{formatDate .Timestamp}}</span>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <div class="card">
+        <div class="card-header">
+            <h2><span class="dot {{dotClass .Gotenberg.Status}}"></span> Gotenberg Engine</h2>
+        </div>
+        <div class="card-body">
+            <div class="detail-row">
+                <span class="detail-label">Service Status</span>
+                <span class="badge {{statusClass .Gotenberg.Status}}">{{.Gotenberg.Status}}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Response Time</span>
+                <span
+                    style="font-family: monospace; font-size: 14px; font-weight: 600; color: var(--accent-secondary);">
+                    {{.Gotenberg.ResponseTimeMs}} ms
+                </span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Last Checked</span>
+                <span>{{formatDate .Gotenberg.LastChecked}}</span>
+            </div>
+            {{if .Gotenberg.Details}}
+            <div class="detail-row">
+                <span class="detail-label">Error Details</span>
+                <span style="color: var(--danger); font-size: 12px;">{{.Gotenberg.Details}}</span>
+            </div>
+            {{end}}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2><span class="dot dot-green"></span> Infrastructure Status</h2>
+        </div>
+        <div class="card-body">
+            <div class="detail-row">
+                <span class="detail-label">Manager App</span>
+                <div>
+                    <span class="badge {{statusClass .App}}">{{.App}}</span>
+                </div>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">PostgreSQL Database</span>
+                <div>
+                    <span class="badge {{statusClass .Database}}">{{.Database}}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div style="margin-top: 32px;">
+    <h3 style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">Raw JSON Output</h3>
+    <a href="/health" target="_blank" class="btn btn-secondary btn-sm"
+        style="display: inline-flex; align-items: center; gap: 6px;">
+        <span>📄</span> View JSON
+    </a>
+</div>
+{{end}}

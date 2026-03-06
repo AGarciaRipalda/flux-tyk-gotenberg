@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 )
@@ -26,19 +27,26 @@ func NewClient(baseURL, adminKey string) *Client {
 }
 
 type CreateKeyRequest struct {
-	Allowance    int                    `json:"allowance"`
-	Rate         int                    `json:"rate"`
-	Per          int                    `json:"per"`
-	Expires      int                    `json:"expires"`
-	QuotaMax     int                    `json:"quota_max"`
-	OrgID        string                 `json:"org_id"`
-	AccessRights map[string]AccessRight `json:"access_rights"`
+	Allowance        int                    `json:"allowance"`
+	Rate             int                    `json:"rate"`
+	Per              int                    `json:"per"`
+	Expires          int                    `json:"expires"`
+	QuotaMax         int                    `json:"quota_max"`
+	QuotaRenewalRate int                    `json:"quota_renewal_rate"`
+	OrgID            string                 `json:"org_id"`
+	AccessRights     map[string]AccessRight `json:"access_rights"`
 }
 
 type AccessRight struct {
-	APIID    string   `json:"api_id"`
-	APIName  string   `json:"api_name"`
-	Versions []string `json:"versions"`
+	APIID       string       `json:"api_id"`
+	APIName     string       `json:"api_name"`
+	Versions    []string     `json:"versions"`
+	AllowedURLs []AllowedURL `json:"allowed_urls"`
+}
+
+type AllowedURL struct {
+	URL     string   `json:"url"`
+	Methods []string `json:"methods"`
 }
 
 type CreateKeyResponse struct {
@@ -48,20 +56,22 @@ type CreateKeyResponse struct {
 	KeyHash string `json:"key_hash"`
 }
 
-// CreateKey creates a new API key in Tyk for a client
+// CreateKey creates a new API key in Tyk for a client and hot-reloads the gateway
 func (c *Client) CreateKey(rate, per, quotaMax int) (*CreateKeyResponse, error) {
 	reqBody := CreateKeyRequest{
-		Allowance: rate,
-		Rate:      rate,
-		Per:       per,
-		Expires:   -1,
-		QuotaMax:  int64ToInt(quotaMax),
-		OrgID:     "default",
+		Allowance:        rate,
+		Rate:             rate,
+		Per:              per,
+		Expires:          -1,
+		QuotaMax:         normalizeLimit(quotaMax),
+		QuotaRenewalRate: 2592000, // 30 days in seconds
+		OrgID:            "default",
 		AccessRights: map[string]AccessRight{
 			"gotenberg-v1": {
-				APIID:    "gotenberg-v1",
-				APIName:  "Gotenberg PDF API",
-				Versions: []string{"Default"},
+				APIID:       "gotenberg-v1",
+				APIName:     "Gotenberg PDF API",
+				Versions:    []string{"Default"},
+				AllowedURLs: []AllowedURL{},
 			},
 		},
 	}
@@ -98,6 +108,9 @@ func (c *Client) CreateKey(rate, per, quotaMax int) (*CreateKeyResponse, error) 
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
+	// Hot-reload the gateway to ensure the new key is active
+	c.ReloadGateway()
+
 	return &result, nil
 }
 
@@ -120,10 +133,35 @@ func (c *Client) DeleteKey(keyID string) error {
 		return fmt.Errorf("Tyk returned status %d: %s", resp.StatusCode, string(body))
 	}
 
+	c.ReloadGateway()
 	return nil
 }
 
-func int64ToInt(v int) int {
+// ReloadGateway triggers a hot-reload of the Tyk Gateway so it picks up new keys/APIs
+func (c *Client) ReloadGateway() {
+	req, err := http.NewRequest("GET", c.BaseURL+"/tyk/reload/", nil)
+	if err != nil {
+		log.Printf("⚠️  Failed to create reload request: %v", err)
+		return
+	}
+	req.Header.Set("x-tyk-authorization", c.AdminKey)
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		log.Printf("⚠️  Failed to reload Tyk gateway: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		log.Println("🔄 Tyk gateway reloaded successfully")
+	} else {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("⚠️  Tyk reload returned %d: %s", resp.StatusCode, string(body))
+	}
+}
+
+func normalizeLimit(v int) int {
 	if v <= 0 {
 		return -1
 	}

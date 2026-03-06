@@ -17,6 +17,8 @@ services:
         condition: service_healthy
       gotenberg:
         condition: service_started
+      tyk-gateway:
+        condition: service_started
     restart: unless-stopped
 
   # ---- PostgreSQL ----
@@ -55,6 +57,10 @@ services:
       TYK_GW_STORAGE_TYPE: "redis"
       TYK_GW_STORAGE_HOST: "tyk-redis"
       TYK_GW_STORAGE_PORT: "6379"
+      # Disable key hashing — critical for key-based auth to work properly
+      TYK_GW_HASHKEYS: "false"
+      # Disable analytics to reduce Redis overhead in dev
+      TYK_GW_ENABLEANALYTICS: "false"
     volumes:
       - ./tyk-apis:/opt/tyk-gateway/apps
     depends_on:

@@ -101,6 +101,7 @@ func main() {
 	r.Post("/dashboard/clients/new", dashboardHandler.ClientFormSubmit)
 	r.Get("/dashboard/clients/{id}", dashboardHandler.ClientDetail)
 	r.Post("/dashboard/clients/{id}/delete", dashboardHandler.ClientDelete)
+	r.Get("/dashboard/health", dashboardHandler.HealthPage)
 
 	// REST API (admin token protected)
 	r.Route("/api", func(r chi.Router) {
