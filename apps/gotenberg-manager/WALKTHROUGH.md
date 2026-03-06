@@ -4,12 +4,12 @@
 
 Una **aplicación Go completa** que actúa como panel de control para tu pipeline Gotenberg + Tyk. Incluye:
 
-- 🏥 **Health monitoring** de Gotenberg en tiempo real
-- 👥 **Gestión de clientes** con CRUD completo
-- 🔑 **Seguridad** con API keys y tokens de admin
-- 📊 **Tracking de uso** por cliente (diario/mensual/total)
-- 🖥️ **Dashboard web** con tema oscuro premium
-- 🐳 **Deploy listo** para Docker Compose y Kubernetes (Flux)
+- **Health monitoring** de Gotenberg en tiempo real
+- **Gestión de clientes** con CRUD completo
+- **Seguridad** con API keys y tokens de admin
+- **Tracking de uso** por cliente (diario/mensual/total)
+- **Dashboard web** con tema oscuro premium
+- **Deploy listo** para Docker Compose y Kubernetes (Flux)
 
 ---
 
@@ -317,11 +317,11 @@ curl -X POST -H "Authorization: Bearer admin-secret" \
 
 | Check | Resultado |
 |---|---|
-| `go mod tidy` | ✅ Dependencias resueltas |
-| `go build ./cmd/server/` | ✅ Compila sin errores |
-| Estructura de proyecto | ✅ 20+ ficheros organizados por dominio |
-| Templates HTML | ✅ 5 templates con layout compartido |
-| Dockerfile | ✅ Multi-stage, non-root, healthcheck |
-| docker-compose.yml | ✅ 5 servicios con healthcheck de PG |
-| K8s manifests | ✅ Namespace + ConfigMap + Secret + Deployments + Services + PVC |
-| Flux sync | ✅ Kustomization con dependsOn de Tyk y Gotenberg |
+| `go mod tidy` | Dependencias resueltas |
+| `go build ./cmd/server/` | Compila sin errores |
+| Estructura de proyecto | 20+ ficheros organizados por dominio |
+| Templates HTML | 5 templates con layout compartido |
+| Dockerfile | Multi-stage, non-root, healthcheck |
+| docker-compose.yml | 5 servicios con healthcheck de PG |
+| K8s manifests | Namespace + ConfigMap + Secret + Deployments + Services + PVC |
+| Flux sync | Kustomization con dependsOn de Tyk y Gotenberg |
