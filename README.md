@@ -178,12 +178,12 @@ A custom **Go microservice** that adds client management, usage tracking, and re
 
 | Feature | Description |
 |---|---|
-| 🏥 **Health Monitoring** | Background goroutine polls Gotenberg `/health` every 30s, stores history in DB |
-| 👥 **Client Management** | Full CRUD with API key generation, plan assignment, and activation/deactivation |
-| 🔑 **Tyk Integration** | Auto-creates/deletes API keys in Tyk when managing clients |
-| 📊 **Usage Tracking** | Per-client counters: today, this month, total — with configurable monthly limits |
-| 🖥️ **Web Dashboard** | Dark-themed admin panel with stats cards, progress bars, and activity tables |
-| 🔐 **Security** | Admin API protected by Bearer token; clients identified by unique API keys |
+| **Health Monitoring** | Background goroutine polls Gotenberg `/health` every 30s, stores history in DB |
+| **Client Management** | Full CRUD with API key generation, plan assignment, and activation/deactivation |
+| **Tyk Integration** | Auto-creates/deletes API keys in Tyk when managing clients |
+| **Usage Tracking** | Per-client counters: today, this month, total — with configurable monthly limits |
+| **Web Dashboard** | Dark-themed admin panel with stats cards, progress bars, and activity tables |
+| **Security** | Admin API protected by Bearer token; clients identified by unique API keys |
 
 ### Tech Stack
 
