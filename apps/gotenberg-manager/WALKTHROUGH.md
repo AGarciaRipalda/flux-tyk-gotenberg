@@ -130,10 +130,10 @@ Structs para las 3 entidades principales:
 | `HealthCheck` | service, status, response_time_ms, details |
 
 Incluye **DTOs** para requests/responses y **PlanLimits** predefinidos:
-- `free` → 100/mes
-- `starter` → 1,000/mes
-- `pro` → 10,000/mes
-- `enterprise` → 100,000/mes
+- `free` → 0/mes
+- `starter` → 10/mes
+- `pro` → 100/mes
+- `enterprise` → 1,000/mes
 
 ### 5. `internal/services/client.go` — Servicio de Clientes
 
