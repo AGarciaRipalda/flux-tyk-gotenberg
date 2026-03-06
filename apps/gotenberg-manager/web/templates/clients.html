@@ -1,0 +1,56 @@
+{{define "clients.html"}}
+{{template "layout.html" .}}
+{{end}}
+
+{{define "content"}}
+<div class="page-header">
+    <h1>Clients <span class="count-badge">{{.Total}}</span></h1>
+    <a href="/dashboard/clients/new" class="btn btn-primary">+ New Client</a>
+</div>
+
+{{if .Clients}}
+<div class="card">
+    <div class="card-body no-padding">
+        <table class="data-table full-width">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Plan</th>
+                    <th>Monthly Limit</th>
+                    <th>Status</th>
+                    <th>API Key</th>
+                    <th>Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Clients}}
+                <tr class="clickable-row" onclick="window.location='/dashboard/clients/{{.ID}}'">
+                    <td><strong>{{.Name}}</strong></td>
+                    <td>{{.Email}}</td>
+                    <td><span class="badge {{planBadge .Plan}}">{{.Plan}}</span></td>
+                    <td>{{.MonthlyLimit}}</td>
+                    <td>
+                        {{if .IsActive}}
+                        <span class="dot dot-green"></span> Active
+                        {{else}}
+                        <span class="dot dot-red"></span> Inactive
+                        {{end}}
+                    </td>
+                    <td><code class="api-key">{{truncate .APIKey 20}}</code></td>
+                    <td>{{formatDate .CreatedAt}}</td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+</div>
+{{else}}
+<div class="empty-card">
+    <div class="empty-icon">👥</div>
+    <h3>No clients yet</h3>
+    <p>Create your first client to start tracking PDF usage</p>
+    <a href="/dashboard/clients/new" class="btn btn-primary">Create Client</a>
+</div>
+{{end}}
+{{end}}

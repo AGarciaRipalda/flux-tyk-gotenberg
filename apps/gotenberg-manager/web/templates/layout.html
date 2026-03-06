@@ -1,0 +1,45 @@
+{{define "layout.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gotenberg Manager</title>
+    <meta name="description" content="Admin dashboard for managing Gotenberg PDF service clients and monitoring">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <span class="logo-icon">📄</span>
+                <span class="logo-text">Gotenberg<br><small>Manager</small></span>
+            </div>
+        </div>
+        <ul class="nav-links">
+            <li><a href="/dashboard" class="nav-link" id="nav-dashboard">
+                <span class="nav-icon">📊</span> Dashboard
+            </a></li>
+            <li><a href="/dashboard/clients" class="nav-link" id="nav-clients">
+                <span class="nav-icon">👥</span> Clients
+            </a></li>
+            <li><a href="/dashboard/clients/new" class="nav-link" id="nav-new-client">
+                <span class="nav-icon">➕</span> New Client
+            </a></li>
+            <li><a href="/health" class="nav-link" id="nav-health" target="_blank">
+                <span class="nav-icon">🏥</span> Health API
+            </a></li>
+        </ul>
+        <div class="sidebar-footer">
+            <span class="version">v1.0.0</span>
+        </div>
+    </nav>
+    <main class="content">
+        {{template "content" .}}
+    </main>
+</body>
+</html>
+{{end}}

@@ -1,0 +1,72 @@
+services:
+  # ---- Gotenberg Manager App ----
+  gotenberg-manager:
+    build: .
+    ports:
+      - "9090:9090"
+    environment:
+      PORT: "9090"
+      DATABASE_URL: "postgres://gotenberg_manager:gotenberg_manager@postgres:5432/gotenberg_manager?sslmode=disable"
+      GOTENBERG_URL: "http://gotenberg:3000"
+      TYK_URL: "http://tyk-gateway:8080"
+      TYK_ADMIN_KEY: "foo"
+      ADMIN_TOKEN: "admin-secret"
+      HEALTH_CHECK_INTERVAL: "30"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      gotenberg:
+        condition: service_started
+    restart: unless-stopped
+
+  # ---- PostgreSQL ----
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: gotenberg_manager
+      POSTGRES_PASSWORD: gotenberg_manager
+      POSTGRES_DB: gotenberg_manager
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U gotenberg_manager" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ---- Gotenberg (PDF engine) ----
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  # ---- Tyk Gateway ----
+  tyk-gateway:
+    image: tykio/tyk-gateway:v5.3.0
+    ports:
+      - "8080:8080"
+    environment:
+      TYK_GW_SECRET: "foo"
+      TYK_GW_LISTENPORT: "8080"
+      TYK_GW_STORAGE_TYPE: "redis"
+      TYK_GW_STORAGE_HOST: "tyk-redis"
+      TYK_GW_STORAGE_PORT: "6379"
+    volumes:
+      - ./tyk-apis:/opt/tyk-gateway/apps
+    depends_on:
+      - tyk-redis
+    restart: unless-stopped
+
+  # ---- Redis (for Tyk) ----
+  tyk-redis:
+    image: redis:6-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+volumes:
+  pgdata:

@@ -1,181 +1,331 @@
 # Flux-Tyk-Gotenberg
 
-This project provides a GitOps-based Kubernetes deployment using [Flux](https://fluxcd.io/) to manage a [Tyk API Gateway](https://tyk.io/) and [Gotenberg](https://gotenberg.dev/) (a developer-friendly API for PDF conversion). 
-
-## Project Structure
-
-- `apps/`: Contains the base manifests for the different components.
-  - `gotenberg/`: Deployments and services for the Gotenberg PDF converter.
-  - `tyk/`: Deployments and services for the Tyk API Gateway and Redis.
-  - `tyk-apis/`: Tyk API configurations (ConfigMaps).
-  - `health-check/`: CronJob that periodically verifies the Tyk-Gotenberg pipeline.
-- `clusters/my-cluster/`: Flux kustomization manifests connecting the GitHub repository to the local cluster deployment.
+A production-ready, GitOps-driven **PDF generation platform** built on Kubernetes. It combines [Gotenberg](https://gotenberg.dev/) as the conversion engine, [Tyk](https://tyk.io/) as the API gateway, and a custom **Gotenberg Manager** app for client management, usage tracking, and monitoring — all deployed declaratively with [Flux CD](https://fluxcd.io/).
 
 ---
 
-## Infrastructure and Architecture Overview
+## Table of Contents
 
-This document provides a technical explanation of the current state of the project and how its infrastructure components work together.
+1. [Architecture](#architecture)
+2. [Project Structure](#project-structure)
+3. [Components](#components)
+4. [Quick Start](#quick-start)
+5. [Gotenberg Manager](#gotenberg-manager)
+6. [API Reference](#api-reference)
+7. [Daily Operations](#daily-operations)
+8. [Disaster Recovery](#disaster-recovery)
 
-### System Overview
+---
 
-The project implements a GitOps-driven Kubernetes architecture managed by **Flux CD**. The system consists of an API Gateway (**Tyk**) that manages and proxies traffic to a backend PDF conversion engine (**Gotenberg**). The complete deployment lifecycle, from foundational infrastructure to application configuration, is managed declaratively through Kubernetes manifests stored in this Git repository.
+## Architecture
 
-### Component Architecture
+![System Architecture](assets/system_architecture.png)
 
-![Component Architecture Diagram](assets/component_architecture.png)
-
-The infrastructure is logically separated into three main application domains located in the `apps/` directory:
-
-#### 1. Gotenberg (`apps/gotenberg`)
-Gotenberg is a Docker-powered stateless API for PDF conversion.
-- **Deployment**: Runs a single replica of the `gotenberg/gotenberg:8` image.
-- **Service**: Exposed internally within the cluster on port `3000`.
-- **Namespace**: `gotenberg`
-
-#### 2. Tyk API Gateway & Redis (`apps/tyk`)
-Tyk acts as the primary entry point and API management layer. It requires a Redis instance for caching, rate limiting, and analytics.
-- **Tyk Gateway**:
-  - Runs `tykio/tyk-gateway:v5.3.0`.
-  - Exposed via a Kubernetes Service on port `8080`.
-  - Configured via environment variables to connect to Redis (`TYK_GW_REDIS_HOST="tyk-redis"`).
-  - Dynamically mounts API definitions directly from a Kubernetes ConfigMap.
-  - **Namespace**: `tyk`
-- **Tyk Redis**:
-  - Runs a lightweight `redis:6-alpine` instance.
-  - Exposed internally to the gateway on port `6379`.
-
-#### 3. API Configuration (`apps/tyk-apis`)
-Instead of hardcoding APIs into the Tyk Gateway, APIs are defined as Kubernetes ConfigMaps, offering a decoupled configuration approach.
-- **`gotenberg-api-definition` ConfigMap**:
-  - Defines an API with the ID `gotenberg-v1`.
-  - Listens on the path `/pdf/`.
-  - Proxies traffic to the internal Gotenberg service using the fully qualified domain name (FQDN): `http://gotenberg.gotenberg.svc.cluster.local:3000/`.
-  - Currently configured as requiring an authentication token (secured API, `use_keyless: false`).
-  - The `tyk-gateway` Deployment mounts this ConfigMap into the `/opt/tyk-gateway/apps` directory, allowing Tyk to discover the API upon startup.
-
-#### 4. Health Check (`apps/health-check`)
-A Kubernetes CronJob that periodically validates the end-to-end PDF generation pipeline.
-- **CronJob**: Runs every 5 minutes (`*/5 * * * *`) using the `curlimages/curl` image.
-- **Functionality**: Mints a short-lived API key from Tyk using the admin secret, sends a request to convert a dummy URL to PDF via the Gateway, and verifies that the response is HTTP 200 OK. Exit code reports success (0) or failure (1).
-- **Namespace**: `health-check`
-
-### GitOps Workflow (Flux CD)
-
-![GitOps Workflow Diagram](assets/gitops_workflow.png)
-
-The continuous delivery of the cluster state is managed by Flux CD, configured in `clusters/my-cluster/`. Flux continuously reconciles the cluster state against the GitHub repository.
-
-Three specific `Kustomization` resources drive the synchronization every 1 minute:
-1. **`infra-tyk-sync.yaml`**: Targets `./apps/tyk/` to deploy the Tyk Gateway and Redis infrastructure.
-2. **`apps-gotenberg-sync.yaml`**: Targets `./apps/gotenberg/` to deploy the PDF conversion engine.
-3. **`tyk-apis-sync.yaml`**: Targets `./apps/tyk-apis/` to inject the API definitions into the `tyk` namespace.
-4. **`health-check-sync.yaml`**: Targets `./apps/health-check/` to deploy the validation CronJob. It is configured to depend on both the `infra-tyk` and `apps-gotenberg` Kustomizations to ensure the pipeline is deployed before checks run.
-
-*Note: Since these syncs happen in parallel or sequentially depending on Flux's controller loops, there may occasionally be a race condition where the Tyk Gateway boots up before the API ConfigMap is injected. A manual rollout restart of the Tyk deployment resolves this (as detailed in the README).*
-
-### Traffic Flow Request Lifecycle
+### Traffic Flow
 
 ![Traffic Flow Diagram](assets/traffic_flow_diagram.png)
 
-From a technical point of view, when a user makes a request to convert a PDF, the traffic flow works as follows:
-
-1. **Localhost Ingress**: The user opens a `kubectl port-forward` bridge from their local machine to the Tyk Gateway Pod on port `8080`.
-2. **API Gateway Evaluation**: The HTTP request hits Tyk (e.g., `POST http://localhost:8080/pdf/...`). Tyk matches the `/pdf/` path to the `gotenberg-v1` API definition.
-3. **Internal Proxying**: Tyk strips the `/pdf/` prefix from the URL path and proxies the modified request to the internal Kubernetes DNS address of the Gotenberg service (`http://gotenberg.gotenberg.svc.cluster.local:3000/`).
-4. **Backend Processing**: The Gotenberg pod receives the request, spins up Chromium (or LibreOffice, depending on the route), renders the content, and generates a PDF file in memory.
-5. **Response Delivery**: Gotenberg streams the PDF binary back through Tyk, which returns the file to the user over the port-forward tunnel.
+1. The user opens a `kubectl port-forward` bridge to the Tyk Gateway on port `8080`.
+2. Tyk receives the request (e.g., `POST /pdf/forms/chromium/convert/url`), matches it to the `gotenberg-v1` API definition, validates the API key.
+3. Tyk strips the `/pdf/` prefix and proxies the request to `http://gotenberg.gotenberg.svc.cluster.local:3000/`.
+4. Gotenberg renders the content using Chromium or LibreOffice and generates the PDF in memory.
+5. The PDF binary streams back through Tyk to the user.
 
 ---
 
-## Daily Cheat Sheet
+## Project Structure
 
-Here is the official, battle-tested daily cheat sheet for interacting with this project.
-
-### The Daily Ignition Sequence
-*(Run this when you open your laptop and want to generate a PDF)*
-
-**1. Verify the Engine is Running**
-Make sure Flux has automatically spun up all your pods (Tyk, Redis, and Gotenberg) and that they say `1/1 Running`:
-
-```bash
-kubectl get pods -A | grep -E "tyk|gotenberg"
 ```
-
-**2. Open the Bridge (Terminal 1)**
-Open the direct tunnel from your Mac into the Tyk Gateway pod. *(Leave this terminal running in the background!)*
-
-```bash
-kubectl port-forward deployment/tyk-gateway 8080:8080 -n tyk
-```
-
-**3. Mint Your VIP Key (Terminal 2)**
-Because the API is locked down, generate a fresh access token using your gateway admin secret (`foo`):
-
-```bash
-curl -X POST -H "x-tyk-authorization: foo" -s \
--H "Content-Type: application/json" \
--d '{
-  "allowance": 1000,
-  "rate": 100,
-  "per": 60,
-  "expires": -1,
-  "quota_max": -1,
-  "org_id": "default",
-  "access_rights": {
-    "gotenberg-v1": {
-      "api_id": "gotenberg-v1",
-      "api_name": "Gotenberg PDF API",
-      "versions": ["Default"]
-    }
-  }
-}' http://localhost:8080/tyk/keys/create
-```
-*(Copy the long alphanumeric string it gives you next to "key":)*
-
-**4. The Golden Request (Terminal 2)**
-Fire your PDF rendering command through the Gateway, passing your new key in the `Authorization` header:
-
-```bash
-curl -v -X POST http://localhost:8080/pdf/forms/chromium/convert/url \
-  -H "Authorization: YOUR_NEW_KEY_HERE" \
-  -F url="https://google.com" \
-  -o daily_pdf.pdf
-```
-
-**5. View the Output**
-
-```bash
-open daily_pdf.pdf
+flux-tyk-gotenberg/
+├── apps/
+│   ├── gotenberg/                 # PDF conversion engine
+│   │   ├── deployment.yaml
+│   │   └── kustomization.yaml
+│   ├── tyk/                       # API Gateway + Redis
+│   │   ├── gateway.yaml
+│   │   ├── redis.yaml
+│   │   ├── namespace.yaml
+│   │   └── kustomization.yaml
+│   ├── tyk-apis/                  # API route definitions
+│   │   ├── gotenberg-api.yaml
+│   │   └── kustomization.yaml
+│   ├── health-check/              # CronJob pipeline validator
+│   │   ├── cronjob.yaml
+│   │   ├── namespace.yaml
+│   │   └── kustomization.yaml
+│   └── gotenberg-manager/         # ★ Management app (Go)
+│       ├── cmd/server/main.go
+│       ├── internal/              # Services, handlers, middleware
+│       ├── web/                   # Dashboard templates + CSS
+│       ├── migrations/            # PostgreSQL schema
+│       ├── k8s/                   # Kubernetes manifests
+│       ├── Dockerfile
+│       ├── docker-compose.yml
+│       └── WALKTHROUGH.md
+├── clusters/my-cluster/           # Flux sync definitions
+│   ├── infra-tyk-sync.yaml
+│   ├── apps-gotenberg-sync.yaml
+│   ├── tyk-apis-sync.yaml
+│   ├── health-check-sync.yaml
+│   └── gotenberg-manager-sync.yaml
+└── assets/                        # Architecture diagrams
 ```
 
 ---
 
-### 🚨 The "Total Disaster" Rebuild Guide
-*(Run this ONLY if you completely delete your local Kubernetes cluster and need to rebuild from absolute zero)*
+## Components
 
-**1. Reinstall Flux and Link to GitHub:**
+### 1. Gotenberg (`apps/gotenberg`)
+
+The PDF conversion engine — a stateless Docker API powered by Chromium and LibreOffice.
+
+| Property | Value |
+|---|---|
+| Image | `gotenberg/gotenberg:8` |
+| Port | `3000` |
+| Namespace | `gotenberg` |
+
+### 2. Tyk API Gateway (`apps/tyk`)
+
+The entry point for all PDF requests. Handles authentication, rate limiting, and routing.
+
+| Property | Value |
+|---|---|
+| Image | `tykio/tyk-gateway:v5.3.0` |
+| Port | `8080` |
+| Auth | Standard auth (`use_keyless: false`) |
+| Redis | `redis:6-alpine` on port `6379` |
+| Namespace | `tyk` |
+
+API definitions are loaded from ConfigMaps (`apps/tyk-apis/`) and mounted into `/opt/tyk-gateway/apps`.
+
+### 3. Health Check (`apps/health-check`)
+
+A Kubernetes CronJob that validates the full pipeline every 5 minutes. It mints a temporary API key, sends a PDF conversion request through Tyk, and verifies an HTTP 200 response.
+
+### 4. Gotenberg Manager (`apps/gotenberg-manager`)
+
+A **Go application** providing centralized management for the PDF platform. See the [dedicated section](#gotenberg-manager) below.
+
+### 5. GitOps — Flux CD (`clusters/my-cluster/`)
+
+![GitOps Workflow Diagram](assets/gitops_workflow.png)
+
+Flux reconciles the cluster state against this Git repository every minute through 5 Kustomization resources:
+
+| Sync File | Target | Dependencies |
+|---|---|---|
+| `infra-tyk-sync.yaml` | `apps/tyk/` | — |
+| `apps-gotenberg-sync.yaml` | `apps/gotenberg/` | — |
+| `tyk-apis-sync.yaml` | `apps/tyk-apis/` | — |
+| `health-check-sync.yaml` | `apps/health-check/` | infra-tyk, apps-gotenberg |
+| `gotenberg-manager-sync.yaml` | `apps/gotenberg-manager/k8s/` | infra-tyk, apps-gotenberg |
+
+> **Note:** There is an occasional race condition where Tyk boots before the API ConfigMap is injected. A `kubectl rollout restart deployment tyk-gateway -n tyk` resolves it.
+
+---
+
+## Quick Start
+
+### Option A: Docker Compose (local development)
+
+The fastest way to get the entire stack running locally:
 
 ```bash
+cd apps/gotenberg-manager
+docker compose up --build -d
+```
+
+This starts **5 services**: PostgreSQL, Gotenberg, Tyk Gateway, Redis, and Gotenberg Manager.
+
+| Service | URL |
+|---|---|
+| Gotenberg Manager Dashboard | http://localhost:9090/dashboard |
+| Gotenberg Manager API | http://localhost:9090/api/ |
+| Health Check | http://localhost:9090/health |
+| Tyk Gateway | http://localhost:8080 |
+| Gotenberg (direct) | http://localhost:3000 |
+
+### Option B: Kubernetes with Flux
+
+```bash
+# 1. Bootstrap Flux
 flux bootstrap github \
   --owner=AGarciaRipalda \
   --repository=flux-tyk-gotenberg \
   --branch=main \
   --path=./clusters/my-cluster \
   --personal
-```
 
-**2. Watch the cluster rebuild itself:**
-
-```bash
+# 2. Wait for reconciliation
 flux get kustomizations -w
-```
-*(Wait until everything says True, then press Ctrl + C).*
 
-**3. Fix the Tyk Startup Race Condition:**
-Because Tyk boots up faster than Kubernetes can inject its configuration files, force it to restart so it reads your `gotenberg-api.json` and connects to Redis:
+# 3. Fix the Tyk startup race condition
+kubectl rollout restart deployment tyk-gateway -n tyk
+
+# 4. Port-forward to access
+kubectl port-forward svc/gotenberg-manager 9090:9090 -n gotenberg-manager
+kubectl port-forward deployment/tyk-gateway 8080:8080 -n tyk
+```
+
+---
+
+## Gotenberg Manager
+
+A custom **Go microservice** that adds client management, usage tracking, and real-time health monitoring to the platform.
+
+### Features
+
+| Feature | Description |
+|---|---|
+| 🏥 **Health Monitoring** | Background goroutine polls Gotenberg `/health` every 30s, stores history in DB |
+| 👥 **Client Management** | Full CRUD with API key generation, plan assignment, and activation/deactivation |
+| 🔑 **Tyk Integration** | Auto-creates/deletes API keys in Tyk when managing clients |
+| 📊 **Usage Tracking** | Per-client counters: today, this month, total — with configurable monthly limits |
+| 🖥️ **Web Dashboard** | Dark-themed admin panel with stats cards, progress bars, and activity tables |
+| 🔐 **Security** | Admin API protected by Bearer token; clients identified by unique API keys |
+
+### Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Language | Go 1.22 |
+| Router | chi v5 |
+| Database | PostgreSQL 16 (via pgx) |
+| Templates | Go `html/template` |
+| Container | Multi-stage Docker (~20 MB) |
+
+### Plans & Limits
+
+| Plan | Monthly PDF Limit |
+|---|---|
+| `free` | 100 |
+| `starter` | 1,000 |
+| `pro` | 10,000 |
+| `enterprise` | 100,000 |
+
+### Configuration
+
+All settings are controlled via environment variables:
+
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `9090` | Server port |
+| `DATABASE_URL` | `postgres://...` | PostgreSQL connection string |
+| `GOTENBERG_URL` | `http://localhost:3000` | Gotenberg base URL |
+| `TYK_URL` | `http://localhost:8080` | Tyk Gateway base URL |
+| `TYK_ADMIN_KEY` | `foo` | Tyk admin secret |
+| `ADMIN_TOKEN` | `admin-secret` | Bearer token for REST API auth |
+| `HEALTH_CHECK_INTERVAL` | `30` | Seconds between health polls |
+
+> For detailed component documentation, see [`apps/gotenberg-manager/WALKTHROUGH.md`](apps/gotenberg-manager/WALKTHROUGH.md).
+
+---
+
+## API Reference
+
+### Public Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/health` | Consolidated health status (app + Gotenberg + DB) |
+| `GET` | `/dashboard` | Admin web dashboard |
+
+### Protected Endpoints (require `Authorization: Bearer <ADMIN_TOKEN>`)
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/clients` | List all clients |
+| `POST` | `/api/clients` | Create a new client |
+| `GET` | `/api/clients/{id}` | Get client details |
+| `PUT` | `/api/clients/{id}` | Update a client |
+| `DELETE` | `/api/clients/{id}` | Delete a client |
+| `POST` | `/api/clients/{id}/rotate-key` | Rotate client API key |
+| `GET` | `/api/clients/{id}/usage` | Get client usage statistics |
+| `GET` | `/api/usage/summary` | Global usage summary |
+
+### Example: Create a Client
 
 ```bash
-kubectl rollout restart deployment tyk-gateway -n tyk
+curl -X POST http://localhost:9090/api/clients \
+  -H "Authorization: Bearer admin-secret" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Acme Corp","email":"admin@acme.com","plan":"pro"}'
 ```
-*(Wait 15 seconds, then follow the "Daily Ignition Sequence" above!)*
+
+### Example: Generate a PDF via Tyk
+
+```bash
+# 1. Mint an API key
+curl -X POST -H "x-tyk-authorization: foo" -s \
+  -H "Content-Type: application/json" \
+  -d '{
+    "allowance": 1000, "rate": 100, "per": 60,
+    "expires": -1, "quota_max": -1, "org_id": "default",
+    "access_rights": {
+      "gotenberg-v1": {
+        "api_id": "gotenberg-v1",
+        "api_name": "Gotenberg PDF API",
+        "versions": ["Default"]
+      }
+    }
+  }' http://localhost:8080/tyk/keys/create
+
+# 2. Use the key to convert a URL to PDF
+curl -X POST http://localhost:8080/pdf/forms/chromium/convert/url \
+  -H "Authorization: <YOUR_KEY>" \
+  -F url="https://example.com" \
+  -o output.pdf
+```
+
+---
+
+## Daily Operations
+
+### Morning Startup (Kubernetes)
+
+```bash
+# 1. Check all pods are running
+kubectl get pods -A | grep -E "tyk|gotenberg"
+
+# 2. Open the Tyk tunnel (keep running)
+kubectl port-forward deployment/tyk-gateway 8080:8080 -n tyk
+
+# 3. Open the Manager tunnel (keep running)
+kubectl port-forward svc/gotenberg-manager 9090:9090 -n gotenberg-manager
+
+# 4. Open the dashboard
+open http://localhost:9090/dashboard
+```
+
+### Morning Startup (Docker Compose)
+
+```bash
+cd apps/gotenberg-manager
+docker compose up -d
+open http://localhost:9090/dashboard
+```
+
+---
+
+## Disaster Recovery
+
+> Run this **only** if the Kubernetes cluster is completely destroyed and needs rebuilding from zero.
+
+```bash
+# 1. Reinstall Flux and link to GitHub
+flux bootstrap github \
+  --owner=AGarciaRipalda \
+  --repository=flux-tyk-gotenberg \
+  --branch=main \
+  --path=./clusters/my-cluster \
+  --personal
+
+# 2. Watch the cluster rebuild
+flux get kustomizations -w
+# Wait until all show "True", then Ctrl+C
+
+# 3. Fix the Tyk startup race condition
+kubectl rollout restart deployment tyk-gateway -n tyk
+# Wait 15 seconds, then follow "Morning Startup" above
+```

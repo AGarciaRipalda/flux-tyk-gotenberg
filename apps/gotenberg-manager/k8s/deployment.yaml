@@ -1,0 +1,135 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gotenberg-manager
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gotenberg-manager-config
+  namespace: gotenberg-manager
+data:
+  PORT: "9090"
+  GOTENBERG_URL: "http://gotenberg.gotenberg.svc.cluster.local:3000"
+  TYK_URL: "http://tyk-gateway.tyk.svc.cluster.local:8080"
+  TYK_ADMIN_KEY: "foo"
+  HEALTH_CHECK_INTERVAL: "30"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gotenberg-manager-secrets
+  namespace: gotenberg-manager
+type: Opaque
+stringData:
+  DATABASE_URL: "postgres://gotenberg_manager:gotenberg_manager@postgres.gotenberg-manager.svc.cluster.local:5432/gotenberg_manager?sslmode=disable"
+  ADMIN_TOKEN: "admin-secret"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: gotenberg-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: "gotenberg_manager"
+            - name: POSTGRES_PASSWORD
+              value: "gotenberg_manager"
+            - name: POSTGRES_DB
+              value: "gotenberg_manager"
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: pgdata
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: gotenberg-manager
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: gotenberg-manager
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gotenberg-manager
+  namespace: gotenberg-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gotenberg-manager
+  template:
+    metadata:
+      labels:
+        app: gotenberg-manager
+    spec:
+      containers:
+        - name: gotenberg-manager
+          image: gotenberg-manager:latest
+          ports:
+            - containerPort: 9090
+          envFrom:
+            - configMapRef:
+                name: gotenberg-manager-config
+            - secretRef:
+                name: gotenberg-manager-secrets
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gotenberg-manager
+  namespace: gotenberg-manager
+spec:
+  selector:
+    app: gotenberg-manager
+  ports:
+    - port: 9090
+      targetPort: 9090

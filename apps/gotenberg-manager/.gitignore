@@ -1,0 +1,17 @@
+# Gotenberg Manager binaries
+gotenberg-manager
+
+# Dependency directories
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Docker
+docker-compose.override.yml

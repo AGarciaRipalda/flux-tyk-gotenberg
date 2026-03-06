@@ -1,0 +1,135 @@
+{{define "dashboard.html"}}
+{{template "layout.html" .}}
+{{end}}
+
+{{define "content"}}
+<div class="page-header">
+    <h1>Dashboard</h1>
+    <p class="subtitle">Gotenberg PDF Service Overview</p>
+</div>
+
+<!-- Health Status Banner -->
+<div class="health-banner {{statusColor .Health.Status}}">
+    <div class="health-indicator"></div>
+    <div class="health-info">
+        <strong>System Status: {{.Health.Status}}</strong>
+        <span>Gotenberg: {{.Health.Gotenberg.Status}} ({{.Health.Gotenberg.ResponseTimeMs}}ms) · Database:
+            {{.Health.Database}}</span>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon">👥</div>
+        <div class="stat-body">
+            <span class="stat-value">{{.Summary.TotalClients}}</span>
+            <span class="stat-label">Total Clients</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">✅</div>
+        <div class="stat-body">
+            <span class="stat-value">{{.Summary.ActiveClients}}</span>
+            <span class="stat-label">Active Clients</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">📄</div>
+        <div class="stat-body">
+            <span class="stat-value">{{.Summary.PDFsToday}}</span>
+            <span class="stat-label">PDFs Today</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">📅</div>
+        <div class="stat-body">
+            <span class="stat-value">{{.Summary.PDFsThisMonth}}</span>
+            <span class="stat-label">PDFs This Month</span>
+        </div>
+    </div>
+    <div class="stat-card accent">
+        <div class="stat-icon">📊</div>
+        <div class="stat-body">
+            <span class="stat-value">{{.Summary.PDFsTotal}}</span>
+            <span class="stat-label">PDFs Total</span>
+        </div>
+    </div>
+</div>
+
+<!-- Two columns -->
+<div class="dashboard-grid">
+    <!-- Top Clients -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Top Clients (This Month)</h2>
+        </div>
+        <div class="card-body">
+            {{if .Summary.TopClients}}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Client</th>
+                        <th>This Month</th>
+                        <th>Limit</th>
+                        <th>Usage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .Summary.TopClients}}
+                    <tr>
+                        <td>{{.ClientName}}</td>
+                        <td>{{.ThisMonth}}</td>
+                        <td>{{.MonthlyLimit}}</td>
+                        <td>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: {{percentage .ThisMonth .MonthlyLimit}}%">
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+            {{else}}
+            <p class="empty-state">No usage data yet</p>
+            {{end}}
+        </div>
+    </div>
+
+    <!-- Recent Clients -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Recent Clients</h2>
+            <a href="/dashboard/clients/new" class="btn btn-sm">+ Add</a>
+        </div>
+        <div class="card-body">
+            {{if .RecentClients}}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Plan</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .RecentClients}}
+                    <tr class="clickable-row" onclick="window.location='/dashboard/clients/{{.ID}}'">
+                        <td><strong>{{.Name}}</strong></td>
+                        <td><span class="badge {{planBadge .Plan}}">{{.Plan}}</span></td>
+                        <td>{{if .IsActive}}<span class="dot dot-green"></span> Active{{else}}<span
+                                class="dot dot-red"></span> Inactive{{end}}</td>
+                        <td>{{formatDate .CreatedAt}}</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+            {{else}}
+            <p class="empty-state">No clients yet. <a href="/dashboard/clients/new">Create one</a></p>
+            {{end}}
+        </div>
+    </div>
+</div>
+{{end}}
