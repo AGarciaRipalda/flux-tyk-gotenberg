@@ -78,6 +78,13 @@ func main() {
 
 	dashboardHandler := handlers.NewDashboardHandler(clientSvc, usageSvc, healthSvc, db, templateDir)
 
+	// Portal handler (client-facing)
+	sessionSecret := os.Getenv("SESSION_SECRET")
+	if sessionSecret == "" {
+		sessionSecret = "default-session-secret-change-me"
+	}
+	portalHandler := handlers.NewPortalHandler(clientSvc, usageSvc, cfg.GotenbergURL, sessionSecret, templateDir)
+
 	// Setup router
 	r := chi.NewRouter()
 	r.Use(chimw.Recoverer)
@@ -91,7 +98,7 @@ func main() {
 	fileServer := http.FileServer(http.Dir(staticDir))
 	r.Handle("/static/*", http.StripPrefix("/static/", fileServer))
 
-	// Dashboard (public web UI)
+	// Dashboard (public web UI — admin)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/dashboard", http.StatusMovedPermanently)
 	})
@@ -115,6 +122,19 @@ func main() {
 		r.Post("/clients/{id}/rotate-key", apiHandler.RotateKey)
 		r.Get("/clients/{id}/usage", apiHandler.GetClientUsage)
 		r.Get("/usage/summary", apiHandler.GetUsageSummary)
+	})
+
+	// Client Portal (public login + session-protected pages)
+	r.Get("/portal/login", portalHandler.LoginPage)
+	r.Post("/portal/login", portalHandler.LoginSubmit)
+	r.Route("/portal", func(r chi.Router) {
+		r.Use(middleware.ClientAuth(sessionSecret))
+
+		r.Get("/", portalHandler.Dashboard)
+		r.Get("/generate", portalHandler.GenerateForm)
+		r.Post("/generate", portalHandler.GenerateSubmit)
+		r.Get("/subscription", portalHandler.Subscription)
+		r.Post("/logout", portalHandler.Logout)
 	})
 
 	// Start server

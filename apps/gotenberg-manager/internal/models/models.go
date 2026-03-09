@@ -10,6 +10,7 @@ type Client struct {
 	Email        string    `json:"email"`
 	APIKey       string    `json:"api_key"`
 	TykKeyID     string    `json:"tyk_key_id,omitempty"`
+	PasswordHash string    `json:"-"`
 	Plan         string    `json:"plan"`
 	MonthlyLimit int       `json:"monthly_limit"`
 	IsActive     bool      `json:"is_active"`
@@ -40,6 +41,7 @@ type HealthCheck struct {
 type CreateClientRequest struct {
 	Name         string `json:"name"`
 	Email        string `json:"email"`
+	Password     string `json:"password,omitempty"`
 	Plan         string `json:"plan"`
 	MonthlyLimit int    `json:"monthly_limit"`
 }
@@ -55,11 +57,11 @@ type UpdateClientRequest struct {
 // --- Response DTOs ---
 
 type HealthResponse struct {
-	Status    string             `json:"status"`
-	App       string             `json:"app"`
-	Gotenberg HealthServiceInfo  `json:"gotenberg"`
-	Database  string             `json:"database"`
-	Timestamp time.Time          `json:"timestamp"`
+	Status    string            `json:"status"`
+	App       string            `json:"app"`
+	Gotenberg HealthServiceInfo `json:"gotenberg"`
+	Database  string            `json:"database"`
+	Timestamp time.Time         `json:"timestamp"`
 }
 
 type HealthServiceInfo struct {
@@ -78,12 +80,12 @@ type UsageStats struct {
 }
 
 type UsageSummary struct {
-	TotalClients   int          `json:"total_clients"`
-	ActiveClients  int          `json:"active_clients"`
-	PDFsToday      int          `json:"pdfs_today"`
-	PDFsThisMonth  int          `json:"pdfs_this_month"`
-	PDFsTotal      int          `json:"pdfs_total"`
-	TopClients     []UsageStats `json:"top_clients"`
+	TotalClients  int          `json:"total_clients"`
+	ActiveClients int          `json:"active_clients"`
+	PDFsToday     int          `json:"pdfs_today"`
+	PDFsThisMonth int          `json:"pdfs_this_month"`
+	PDFsTotal     int          `json:"pdfs_total"`
+	TopClients    []UsageStats `json:"top_clients"`
 }
 
 // --- Dashboard View Models ---
@@ -111,4 +113,31 @@ var PlanLimits = map[string]int{
 	"starter":    1000,
 	"pro":        10000,
 	"enterprise": 100000,
+}
+
+// --- Portal View Models ---
+
+type PortalDashboardData struct {
+	Client       Client
+	Usage        UsageStats
+	RecentUsage  []UsageRecord
+	QuotaPercent int
+}
+
+type PortalGenerateData struct {
+	Client    Client
+	QuotaLeft int
+	Error     string
+	Success   bool
+}
+
+type PortalSubscriptionData struct {
+	Client       Client
+	Usage        UsageStats
+	QuotaPercent int
+	Plans        map[string]int
+}
+
+type PortalLoginData struct {
+	Error string
 }

@@ -181,6 +181,7 @@ func (h *DashboardHandler) ClientFormSubmit(w http.ResponseWriter, r *http.Reque
 	req := models.CreateClientRequest{
 		Name:         r.FormValue("name"),
 		Email:        r.FormValue("email"),
+		Password:     r.FormValue("password"),
 		Plan:         plan,
 		MonthlyLimit: monthlyLimit,
 	}

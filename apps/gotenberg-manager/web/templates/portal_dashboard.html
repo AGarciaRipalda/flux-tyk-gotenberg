@@ -1,0 +1,101 @@
+{{define "portal_dashboard.html"}}
+{{template "portal_layout.html" .}}
+{{end}}
+
+{{define "clientName"}}{{.Client.Name}}{{end}}
+
+{{define "portal-content"}}
+<div class="page-header">
+    <div>
+        <h1>Welcome, {{.Client.Name}} 👋</h1>
+        <p class="subtitle">
+            <span class="badge badge-lg {{planBadge .Client.Plan}}">{{upper .Client.Plan}}</span>
+            Plan overview and usage statistics
+        </p>
+    </div>
+    <a href="/portal/generate" class="btn btn-primary" id="quick-generate-btn">⚡ Generate PDF</a>
+</div>
+
+<!-- Quota Progress -->
+<div class="portal-quota-card" id="quota-card">
+    <div class="portal-quota-header">
+        <h2>Monthly Quota</h2>
+        <span class="portal-quota-counter">{{.Usage.ThisMonth}} / {{.Client.MonthlyLimit}}</span>
+    </div>
+    <div class="progress-bar-lg">
+        <div class="progress-fill {{if ge .QuotaPercent 90}}progress-danger{{else if ge .QuotaPercent 70}}progress-warning{{end}}"
+            style="width: {{.QuotaPercent}}%"></div>
+    </div>
+    <div class="portal-quota-footer">
+        <span>{{subtract .Client.MonthlyLimit .Usage.ThisMonth}} PDFs remaining</span>
+        <span>{{.QuotaPercent}}% used</span>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon">📄</div>
+        <div class="stat-body">
+            <span class="stat-value">{{.Usage.Today}}</span>
+            <span class="stat-label">PDFs Today</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">📅</div>
+        <div class="stat-body">
+            <span class="stat-value">{{.Usage.ThisMonth}}</span>
+            <span class="stat-label">This Month</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">📊</div>
+        <div class="stat-body">
+            <span class="stat-value">{{.Usage.Total}}</span>
+            <span class="stat-label">Total All-Time</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">🎯</div>
+        <div class="stat-body">
+            <span class="stat-value">{{.Client.MonthlyLimit}}</span>
+            <span class="stat-label">Monthly Limit</span>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="card">
+    <div class="card-header">
+        <h2>Recent Conversions</h2>
+    </div>
+    <div class="card-body no-padding">
+        {{if .RecentUsage}}
+        <table class="data-table full-width" id="recent-activity-table">
+            <thead>
+                <tr>
+                    <th>Endpoint</th>
+                    <th>Status</th>
+                    <th>Response Time</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .RecentUsage}}
+                <tr>
+                    <td><code>{{.Endpoint}}</code></td>
+                    <td><span class="status-pill {{statusCode .StatusCode}}">{{.StatusCode}}</span></td>
+                    <td>{{.ResponseTimeMs}}ms</td>
+                    <td>{{formatDate .CreatedAt}}</td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+        {{else}}
+        <div class="empty-state" style="padding: 40px;">
+            <p>No conversions yet. <a href="/portal/generate">Generate your first PDF →</a></p>
+        </div>
+        {{end}}
+    </div>
+</div>
+{{end}}

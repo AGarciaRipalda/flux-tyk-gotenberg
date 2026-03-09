@@ -1,0 +1,140 @@
+{{define "portal_subscription.html"}}
+{{template "portal_layout.html" .}}
+{{end}}
+
+{{define "clientName"}}{{.Client.Name}}{{end}}
+
+{{define "portal-content"}}
+<div class="page-header">
+    <div>
+        <h1>Subscription 💎</h1>
+        <p class="subtitle">Manage your plan and monitor usage</p>
+    </div>
+</div>
+
+<!-- Current Plan -->
+<div class="portal-plan-current" id="current-plan-card">
+    <div class="portal-plan-badge-wrap">
+        <span class="badge badge-lg {{planBadge .Client.Plan}}">{{upper .Client.Plan}}</span>
+        <span class="portal-plan-label">Current Plan</span>
+    </div>
+    <div class="portal-plan-stats">
+        <div class="portal-plan-stat">
+            <span class="portal-plan-stat-value">{{.Client.MonthlyLimit}}</span>
+            <span class="portal-plan-stat-label">Monthly Limit</span>
+        </div>
+        <div class="portal-plan-stat">
+            <span class="portal-plan-stat-value">{{.Usage.ThisMonth}}</span>
+            <span class="portal-plan-stat-label">Used This Month</span>
+        </div>
+        <div class="portal-plan-stat">
+            <span class="portal-plan-stat-value">{{subtract .Client.MonthlyLimit .Usage.ThisMonth}}</span>
+            <span class="portal-plan-stat-label">Remaining</span>
+        </div>
+    </div>
+    <div style="margin-top: 16px;">
+        <div class="portal-quota-header">
+            <span>Usage</span>
+            <span>{{.QuotaPercent}}%</span>
+        </div>
+        <div class="progress-bar-lg">
+            <div class="progress-fill {{if ge .QuotaPercent 90}}progress-danger{{else if ge .QuotaPercent 70}}progress-warning{{end}}"
+                style="width: {{.QuotaPercent}}%"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Usage History -->
+<div class="stats-grid" style="margin: 24px 0;">
+    <div class="stat-card">
+        <div class="stat-icon">📄</div>
+        <div class="stat-body">
+            <span class="stat-value">{{.Usage.Today}}</span>
+            <span class="stat-label">PDFs Today</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">📅</div>
+        <div class="stat-body">
+            <span class="stat-value">{{.Usage.ThisMonth}}</span>
+            <span class="stat-label">This Month</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">📊</div>
+        <div class="stat-body">
+            <span class="stat-value">{{.Usage.Total}}</span>
+            <span class="stat-label">All Time</span>
+        </div>
+    </div>
+</div>
+
+<!-- Plan Comparison -->
+<h2 style="margin-bottom: 16px;">Available Plans</h2>
+<div class="portal-plans-grid" id="plans-grid">
+    <div class="portal-plan-card {{if eq .Client.Plan " free"}}portal-plan-active{{end}}" id="plan-free">
+        <div class="portal-plan-card-header">
+            <span class="badge badge-free">FREE</span>
+        </div>
+        <div class="portal-plan-card-body">
+            <span class="portal-plan-limit">100</span>
+            <span class="portal-plan-unit">PDFs / month</span>
+        </div>
+        {{if eq .Client.Plan "free"}}
+        <div class="portal-plan-card-footer">
+            <span class="portal-plan-current-tag">✓ Current Plan</span>
+        </div>
+        {{end}}
+    </div>
+
+    <div class="portal-plan-card {{if eq .Client.Plan " starter"}}portal-plan-active{{end}}" id="plan-starter">
+        <div class="portal-plan-card-header">
+            <span class="badge badge-starter">STARTER</span>
+        </div>
+        <div class="portal-plan-card-body">
+            <span class="portal-plan-limit">1,000</span>
+            <span class="portal-plan-unit">PDFs / month</span>
+        </div>
+        {{if eq .Client.Plan "starter"}}
+        <div class="portal-plan-card-footer">
+            <span class="portal-plan-current-tag">✓ Current Plan</span>
+        </div>
+        {{end}}
+    </div>
+
+    <div class="portal-plan-card {{if eq .Client.Plan " pro"}}portal-plan-active{{end}}" id="plan-pro">
+        <div class="portal-plan-card-header">
+            <span class="badge badge-pro">PRO</span>
+        </div>
+        <div class="portal-plan-card-body">
+            <span class="portal-plan-limit">10,000</span>
+            <span class="portal-plan-unit">PDFs / month</span>
+        </div>
+        {{if eq .Client.Plan "pro"}}
+        <div class="portal-plan-card-footer">
+            <span class="portal-plan-current-tag">✓ Current Plan</span>
+        </div>
+        {{end}}
+    </div>
+
+    <div class="portal-plan-card {{if eq .Client.Plan " enterprise"}}portal-plan-active{{end}}" id="plan-enterprise">
+        <div class="portal-plan-card-header">
+            <span class="badge badge-enterprise">ENTERPRISE</span>
+        </div>
+        <div class="portal-plan-card-body">
+            <span class="portal-plan-limit">100,000</span>
+            <span class="portal-plan-unit">PDFs / month</span>
+        </div>
+        {{if eq .Client.Plan "enterprise"}}
+        <div class="portal-plan-card-footer">
+            <span class="portal-plan-current-tag">✓ Current Plan</span>
+        </div>
+        {{end}}
+    </div>
+</div>
+
+<div class="form-info" style="margin-top: 24px;">
+    <span class="info-icon">ℹ️</span>
+    <span>To upgrade your plan, contact your administrator at the admin dashboard.</span>
+</div>
+{{end}}

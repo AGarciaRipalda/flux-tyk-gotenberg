@@ -141,6 +141,7 @@ This starts **5 services**: PostgreSQL, Gotenberg, Tyk Gateway, Redis, and Goten
 | Service | URL |
 |---|---|
 | Gotenberg Manager Dashboard | http://localhost:9090/dashboard |
+| Client Portal (Login) | http://localhost:9090/portal/login |
 | Gotenberg Manager API | http://localhost:9090/api/ |
 | Health Check | http://localhost:9090/health |
 | Tyk Gateway | http://localhost:8080 |
@@ -179,11 +180,12 @@ A custom **Go microservice** that adds client management, usage tracking, and re
 | Feature | Description |
 |---|---|
 | **Health Monitoring** | Background goroutine polls Gotenberg `/health` every 30s, stores history in DB |
-| **Client Management** | Full CRUD with API key generation, plan assignment, and activation/deactivation |
+| **Client Management** | Full CRUD with API key generation, password auth, plan assignment, and activation/deactivation |
 | **Tyk Integration** | Auto-creates/deletes API keys in Tyk when managing clients |
 | **Usage Tracking** | Per-client counters: today, this month, total — with configurable monthly limits |
-| **Web Dashboard** | Dark-themed admin panel with stats cards, progress bars, and activity tables |
-| **Security** | Admin API protected by Bearer token; clients identified by unique API keys |
+| **Admin Dashboard** | Dark-themed admin panel with stats cards, progress bars, and activity tables |
+| **Client Portal** | Web portal for clients to log in (email+password), generate PDFs directly (URL/HTML/File), and view their quota |
+| **Security** | Admin API protected by Bearer token; Portal protected by HMAC session cookies; Clients identified by API keys for Tyk access |
 
 ### Tech Stack
 
@@ -216,6 +218,7 @@ All settings are controlled via environment variables:
 | `TYK_URL` | `http://localhost:8080` | Tyk Gateway base URL |
 | `TYK_ADMIN_KEY` | `foo` | Tyk admin secret |
 | `ADMIN_TOKEN` | `admin-secret` | Bearer token for REST API auth |
+| `SESSION_SECRET` | `default-session-secret-change-me` | HMAC secret for portal session cookies |
 | `HEALTH_CHECK_INTERVAL` | `30` | Seconds between health polls |
 
 > For detailed component documentation, see [`apps/gotenberg-manager/WALKTHROUGH.md`](apps/gotenberg-manager/WALKTHROUGH.md).
@@ -230,6 +233,15 @@ All settings are controlled via environment variables:
 |---|---|---|
 | `GET` | `/health` | Consolidated health status (app + Gotenberg + DB) |
 | `GET` | `/dashboard` | Admin web dashboard |
+| `GET` | `/portal/login` | Client portal login page |
+
+### Client Session Endpoints (require cookie)
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/portal` | Client dashboard (stats & quota) |
+| `POST`| `/portal/generate` | Generate PDF (proxies to Gotenberg) |
+| `GET` | `/portal/subscription`| Plan comparison |
 
 ### Protected Endpoints (require `Authorization: Bearer <ADMIN_TOKEN>`)
 
@@ -271,9 +283,9 @@ curl -X POST -H "x-tyk-authorization: foo" -s \
     }
   }' http://localhost:8080/tyk/keys/create
 
-# 2. Use the key to convert a URL to PDF
+# 2. Use the "key" from the step 1 response to convert a URL to PDF
 curl -X POST http://localhost:8080/pdf/forms/chromium/convert/url \
-  -H "Authorization: gm_a83b2...YOUR_CLIENT_KEY" \
+  -H "Authorization: eyJvcm...YOUR_TYK_KEY_HERE" \
   -F url="https://example.com" \
   -o output.pdf
 ```

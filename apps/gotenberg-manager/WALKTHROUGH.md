@@ -6,9 +6,10 @@ Una **aplicación Go completa** que actúa como panel de control para tu pipelin
 
 - **Health monitoring** de Gotenberg en tiempo real
 - **Gestión de clientes** con CRUD completo
-- **Seguridad** con API keys y tokens de admin
+- **Seguridad** con API keys, tokens de admin, y login con email+password (bcrypt)
 - **Tracking de uso** por cliente (diario/mensual/total)
-- **Dashboard web** con tema oscuro premium
+- **Dashboard web de admin** con tema oscuro premium
+- **Portal de clientes** para generar PDFs sin curl, ver quota y suscripción
 - **Deploy listo** para Docker Compose y Kubernetes (Flux)
 
 ---
@@ -31,19 +32,23 @@ graph TB
         HDLR --> API[API Handler]
         HDLR --> DASH[Dashboard Handler]
         HDLR --> HH[Health Handler]
+        HDLR --> PORTAL[Portal Handler]
         
         MW --> AUTH[Admin Auth]
+        MW --> CAUTH[Client Session Auth]
         MW --> LOG[Request Logger]
     end
 
     CS -->|Admin API| TYK[Tyk Gateway :8080]
     HS -->|GET /health| GOT[Gotenberg :3000]
+    PORTAL -->|PDF proxy| GOT
     TYK --> GOT
     
     style MAIN fill:#7c5cfc,color:#fff
     style DB fill:#5e9cff,color:#fff
     style TYK fill:#34d399,color:#000
     style GOT fill:#fbbf24,color:#000
+    style PORTAL fill:#f59e0b,color:#000
 ```
 
 ---
@@ -56,23 +61,38 @@ apps/gotenberg-manager/
 ├── internal/
 │   ├── config/config.go         ← Variables de entorno
 │   ├── database/postgres.go     ← Conexión PG + migraciones
-│   ├── models/models.go         ← Structs y DTOs
+│   ├── models/models.go         ← Structs, DTOs y View Models
 │   ├── services/
-│   │   ├── client.go            ← CRUD + API keys + Tyk
+│   │   ├── client.go            ← CRUD + API keys + Tyk + Auth (bcrypt)
 │   │   ├── health.go            ← Polling Gotenberg /health
 │   │   └── usage.go             ← Contadores + stats
 │   ├── handlers/
-│   │   ├── api.go               ← REST endpoints
-│   │   ├── dashboard.go         ← Páginas HTML
-│   │   └── health.go            ← GET /health
+│   │   ├── api.go               ← REST endpoints (admin)
+│   │   ├── dashboard.go         ← Dashboard HTML (admin)
+│   │   ├── health.go            ← GET /health
+│   │   └── portal.go            ← ★ Portal de clientes (login, PDF, quota)
 │   ├── middleware/
 │   │   ├── auth.go              ← Bearer token admin
+│   │   ├── client_auth.go       ← ★ Sesiones HMAC para portal
 │   │   └── logger.go            ← Logging de peticiones
 │   └── tyk/client.go            ← Wrapper de Tyk Admin API
-├── migrations/001_init.sql      ← Schema SQL
+├── migrations/
+│   ├── 001_init.sql             ← Schema inicial
+│   └── 002_client_portal.sql    ← ★ Añade password_hash
 ├── web/
-│   ├── templates/*.html         ← 5 templates Go
-│   └── static/style.css         ← CSS dark theme
+│   ├── templates/
+│   │   ├── layout.html          ← Layout admin (sidebar)
+│   │   ├── dashboard.html       ← Admin dashboard
+│   │   ├── clients.html         ← Admin lista de clientes
+│   │   ├── client_detail.html   ← Admin detalle de cliente
+│   │   ├── client_form.html     ← Admin formulario (+ password)
+│   │   ├── health_page.html     ← Admin health
+│   │   ├── portal_layout.html   ← ★ Layout portal (top navbar)
+│   │   ├── portal_login.html    ← ★ Login email+password
+│   │   ├── portal_dashboard.html← ★ Dashboard cliente + quota
+│   │   ├── portal_generate.html ← ★ Generación PDF (3 modos)
+│   │   └── portal_subscription.html ← ★ Plan y comparativa
+│   └── static/style.css         ← CSS dark theme + portal styles
 ├── tyk-apis/gotenberg-api.json  ← API def para Docker
 ├── k8s/                         ← Manifiestos Kubernetes
 ├── Dockerfile                   ← Multi-stage build
@@ -112,6 +132,7 @@ Lee **todas** las configuraciones desde variables de entorno con valores por def
 | `TYK_URL` | `http://localhost:8080` | URL de Tyk Gateway |
 | `TYK_ADMIN_KEY` | `foo` | Secret de admin de Tyk |
 | `ADMIN_TOKEN` | `admin-secret` | Token para la API REST |
+| `SESSION_SECRET` | `default-session-secret-change-me` | Secreto HMAC para firmar cookies del portal |
 | `HEALTH_CHECK_INTERVAL` | `30` | Segundos entre health checks |
 
 ### 3. `internal/database/postgres.go` — Base de datos
@@ -125,23 +146,25 @@ Structs para las 3 entidades principales:
 
 | Entidad | Campos clave |
 |---|---|
-| `Client` | id, name, email, api_key, tyk_key_id, plan, monthly_limit, is_active |
+| `Client` | id, name, email, api_key, tyk_key_id, password_hash, plan, monthly_limit, is_active |
 | `UsageRecord` | client_id, endpoint, status_code, response_time_ms |
 | `HealthCheck` | service, status, response_time_ms, details |
 
-Incluye **DTOs** para requests/responses y **PlanLimits** predefinidos:
-- `free` → 0/mes
-- `starter` → 10/mes
-- `pro` → 100/mes
-- `enterprise` → 1,000/mes
+Incluye **DTOs** para requests/responses, **View Models** para el portal (`PortalDashboardData`, `PortalGenerateData`, `PortalSubscriptionData`) y **PlanLimits** predefinidos:
+- `free` → 100/mes
+- `starter` → 1,000/mes
+- `pro` → 10,000/mes
+- `enterprise` → 100,000/mes
 
 ### 5. `internal/services/client.go` — Servicio de Clientes
 
-- **Create**: genera API key (`gm_` + 64 hex chars), intenta crear key en Tyk (no falla si Tyk no está disponible), inserta en DB
-- **List / GetByID / GetByAPIKey**: consultas con todos los campos
+- **Create**: genera API key (`gm_` + 64 hex chars), hashea password con bcrypt si se proporciona, intenta crear key en Tyk (no falla si Tyk no está disponible), inserta en DB
+- **List / GetByID / GetByAPIKey**: consultas con todos los campos incluyendo `password_hash`
 - **Update**: actualiza nombre, email, plan, límite, estado activo
 - **Delete**: elimina la key de Tyk + borra de la DB (con CASCADE en usage_records)
 - **RotateKey**: genera nueva API key manteniendo el mismo cliente
+- **Authenticate**: valida email + password con `bcrypt.CompareHashAndPassword`
+- **SetPassword**: establece o actualiza la contraseña de un cliente
 
 ### 6. `internal/services/health.go` — Health Monitor
 
@@ -178,40 +201,65 @@ Wrapper HTTP para la Admin API de Tyk:
 | GET | `/api/clients/{id}/usage` | Stats de uso |
 | GET | `/api/usage/summary` | Resumen global |
 
-**`dashboard.go`** — Dashboard web (páginas HTML):
+**`dashboard.go`** — Dashboard web (páginas HTML admin):
 
 | Ruta | Página |
 |---|---|
 | `/dashboard` | Overview con stats, health, top clients |
 | `/dashboard/clients` | Tabla de todos los clientes |
-| `/dashboard/clients/new` | Formulario de creación |
+| `/dashboard/clients/new` | Formulario de creación (con campo password) |
 | `/dashboard/clients/{id}` | Detalle + uso + actividad |
+
+**`portal.go`** — ★ Portal de clientes (sesión por cookie):
+
+| Ruta | Método | Página |
+|---|---|---|
+| `/portal/login` | GET | Formulario de login |
+| `/portal/login` | POST | Autenticar email+password |
+| `/portal` | GET | Dashboard del cliente (quota, stats, actividad) |
+| `/portal/generate` | GET | Formulario de generación PDF (3 modos) |
+| `/portal/generate` | POST | Generar PDF (proxy a Gotenberg + registro uso) |
+| `/portal/subscription` | GET | Plan actual y comparativa de planes |
+| `/portal/logout` | POST | Cerrar sesión |
+
+> [!NOTE]
+> El portal envía las peticiones de PDF **directamente a Gotenberg** (sin pasar por Tyk), lo que permite control total de quota a nivel de aplicación y registro automático del uso.
 
 **`health.go`** — `GET /health` (público, JSON)
 
 ### 10. `internal/middleware/` — Middleware
 
 - **`auth.go`**: valida `Authorization: Bearer <token>` contra `ADMIN_TOKEN` configurado
+- **`client_auth.go`**: valida cookie de sesión HMAC-firmada para el portal de clientes. Inyecta el `clientID` en el contexto de la request
 - **`logger.go`**: registra `METHOD PATH STATUS DURATION` para cada petición
 
-### 11. `web/templates/` — Dashboard HTML
+### 11. `web/templates/` — Templates HTML
 
-5 templates Go con `html/template`:
+**Admin** — 6 templates con layout de sidebar:
 - **layout.html**: sidebar con navegación + estructura base
 - **dashboard.html**: cards de stats, banner de health, tablas de top clients y clientes recientes
 - **clients.html**: tabla completa con badges de plan y estados
 - **client_detail.html**: stats de uso, barra de progreso mensual, detalles de API key, actividad reciente
-- **client_form.html**: formulario con selector de plan
+- **client_form.html**: formulario con selector de plan + campo password para portal
+- **health_page.html**: estado del sistema
+
+**Portal de clientes** — 5 templates con layout de top navbar:
+- **portal_layout.html**: navbar superior con Dashboard / Generate PDF / Subscription + nombre del cliente + logout
+- **portal_login.html**: página de login centrada con email + password
+- **portal_dashboard.html**: barra de progreso de quota, stats cards (hoy/mes/total/límite), tabla de conversiones recientes
+- **portal_generate.html**: interfaz con 3 pestañas (URL → PDF, HTML → PDF, Archivo → PDF) con drag & drop
+- **portal_subscription.html**: card del plan actual con stats, barra de progreso, y grid comparativo de 4 planes
 
 ### 12. `web/static/style.css` — Diseño
 
-Tema oscuro premium con:
+Tema oscuro premium (~1300 líneas) con:
 - Paleta `#0f1117` / `#7c5cfc` (púrpura) / `#5e9cff` (azul)
 - Glassmorphism en cards con `box-shadow` y bordes sutiles
 - Badges de color por plan (free/starter/pro/enterprise)
-- Barra de progreso con gradiente para uso mensual
+- Barra de progreso con gradiente para uso mensual (+ estados warning/danger)
 - Animación `pulse` en el indicador de health
 - Layout responsive (sidebar se colapsa en móvil)
+- **Portal**: login card con fondo radial gradient, navbar fija, tabs para modos de conversión, zona de drag & drop para archivos, grid de planes con highlight del activo
 
 ---
 
@@ -288,16 +336,16 @@ open http://localhost:9090/dashboard
 ### Usar la API REST
 
 ```bash
-# Crear un cliente (con Admin Token)
+# Crear un cliente con password para el portal (con Admin Token)
 curl -X POST http://localhost:9090/api/clients \
   -H "Authorization: Bearer admin-secret" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Acme Corp","email":"admin@acme.com","plan":"pro"}'
+  -d '{"name":"Acme Corp","email":"admin@acme.com","password":"secreto123","plan":"pro"}'
 
-# --- USANDO EL SERVICIO COMO CLIENTE ---
-# Generar un PDF consumiendo Tyk con la llave generada (empieza por gm_...)
+# --- USANDO EL SERVICIO COMO CLIENTE (vía Tyk con curl) ---
+# Generar un PDF consumiendo Tyk con la llave Tyk generada
 curl -X POST http://localhost:8080/pdf/forms/chromium/convert/url \
-  -H "Authorization: gm_a83b2...API_KEY_DEL_CLIENTE" \
+  -H "Authorization: eyJvcm...TYK_KEY_AQUI" \
   -F url="https://example.com" \
   -o output.pdf
 
@@ -318,6 +366,28 @@ curl -X POST -H "Authorization: Bearer admin-secret" \
   http://localhost:9090/api/clients/{ID}/rotate-key
 ```
 
+### Usar el Portal de Clientes
+
+El portal permite a los clientes generar PDFs directamente desde el navegador sin necesidad de `curl`:
+
+```bash
+# 1. Crear un cliente con password desde el admin
+#    Dashboard → Clients → New Client → rellenar con password
+#    O vía API como se muestra arriba
+
+# 2. Acceder al portal
+open http://localhost:9090/portal/login
+
+# 3. Iniciar sesión con email + password del cliente
+# 4. Desde el dashboard del portal:
+#    - Ver quota mensual (barra de progreso)
+#    - Generar PDFs (URL / HTML / archivo)
+#    - Consultar plan y comparar opciones
+```
+
+> [!TIP]
+> El portal genera PDFs directamente contra Gotenberg (sin Tyk), registrando automáticamente cada conversión en la base de datos y controlando la quota del cliente.
+
 ---
 
 ## Validación
@@ -326,8 +396,12 @@ curl -X POST -H "Authorization: Bearer admin-secret" \
 |---|---|
 | `go mod tidy` | Dependencias resueltas |
 | `go build ./cmd/server/` | Compila sin errores |
-| Estructura de proyecto | 20+ ficheros organizados por dominio |
-| Templates HTML | 5 templates con layout compartido |
+| Estructura de proyecto | 25+ ficheros organizados por dominio |
+| Templates HTML admin | 6 templates con layout sidebar |
+| Templates HTML portal | 5 templates con layout navbar |
+| Portal login | ✅ Email + password con bcrypt |
+| Portal PDF generation | ✅ URL/HTML/File → PDF (proxy directo a Gotenberg) |
+| Portal quota tracking | ✅ Se actualiza tras cada conversión |
 | Dockerfile | Multi-stage, non-root, healthcheck |
 | docker-compose.yml | 5 servicios con healthcheck de PG |
 | K8s manifests | Namespace + ConfigMap + Secret + Deployments + Services + PVC |

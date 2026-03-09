@@ -1,0 +1,60 @@
+{{define "portal_login.html"}}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In — Gotenberg Portal</title>
+    <meta name="description" content="Sign in to your Gotenberg PDF portal to generate PDFs and manage your subscription">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body class="portal-login-body">
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-logo">
+                    <span class="login-logo-icon">📄</span>
+                    <div>
+                        <h1 class="login-title">Gotenberg</h1>
+                        <p class="login-subtitle">PDF Portal</p>
+                    </div>
+                </div>
+                <p class="login-desc">Sign in to generate PDFs and manage your subscription</p>
+            </div>
+
+            {{if .Error}}
+            <div class="login-error" id="login-error">
+                <span>⚠️</span> {{.Error}}
+            </div>
+            {{end}}
+
+            <form method="POST" action="/portal/login" class="login-form" id="login-form">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" class="form-input" placeholder="your@email.com"
+                        required autofocus>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" class="form-input"
+                        placeholder="Enter your password" required>
+                </div>
+                <button type="submit" class="btn btn-primary login-btn" id="login-submit">
+                    Sign In →
+                </button>
+            </form>
+
+            <div class="login-footer">
+                <p>Contact your administrator to get access credentials</p>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
+{{end}}

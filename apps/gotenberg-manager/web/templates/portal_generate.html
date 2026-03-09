@@ -1,0 +1,136 @@
+{{define "portal_generate.html"}}
+{{template "portal_layout.html" .}}
+{{end}}
+
+{{define "clientName"}}{{.Client.Name}}{{end}}
+
+{{define "portal-content"}}
+<div class="page-header">
+    <div>
+        <h1>Generate PDF ⚡</h1>
+        <p class="subtitle">Convert URLs, HTML, or files to PDF — <strong>{{.QuotaLeft}}</strong> conversions remaining
+            this month</p>
+    </div>
+</div>
+
+{{if .Error}}
+<div class="portal-alert portal-alert-danger" id="generate-error">
+    <span>⚠️</span> {{.Error}}
+</div>
+{{end}}
+
+{{if .Success}}
+<div class="portal-alert portal-alert-success" id="generate-success">
+    <span>✅</span> PDF generated successfully! Your download should start automatically.
+</div>
+{{end}}
+
+<!-- Mode Tabs -->
+<div class="portal-tabs" id="mode-tabs">
+    <button class="portal-tab active" data-tab="url" id="tab-url" onclick="switchTab('url')">
+        🌐 URL to PDF
+    </button>
+    <button class="portal-tab" data-tab="html" id="tab-html" onclick="switchTab('html')">
+        📝 HTML to PDF
+    </button>
+    <button class="portal-tab" data-tab="file" id="tab-file" onclick="switchTab('file')">
+        📁 File to PDF
+    </button>
+</div>
+
+<!-- URL Mode -->
+<div class="card portal-mode-card" id="mode-url">
+    <div class="card-body">
+        <form method="POST" action="/portal/generate" id="form-url">
+            <input type="hidden" name="mode" value="url">
+            <div class="form-group">
+                <label for="url-input">Website URL</label>
+                <input type="url" id="url-input" name="url" class="form-input" placeholder="https://example.com"
+                    required>
+                <span class="form-hint">Enter the full URL of the page you want to convert to PDF</span>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary" id="submit-url">⚡ Generate PDF</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- HTML Mode -->
+<div class="card portal-mode-card" id="mode-html" style="display:none;">
+    <div class="card-body">
+        <form method="POST" action="/portal/generate" id="form-html">
+            <input type="hidden" name="mode" value="html">
+            <div class="form-group">
+                <label for="html-input">HTML Content</label>
+                <textarea id="html-input" name="html" class="form-input portal-textarea"
+                    placeholder="<h1>Hello World</h1><p>Your HTML content here...</p>" required rows="12"></textarea>
+                <span class="form-hint">Paste your HTML code — it will be rendered and converted to PDF</span>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary" id="submit-html">⚡ Generate PDF</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- File Mode -->
+<div class="card portal-mode-card" id="mode-file" style="display:none;">
+    <div class="card-body">
+        <form method="POST" action="/portal/generate" enctype="multipart/form-data" id="form-file">
+            <input type="hidden" name="mode" value="file">
+            <div class="form-group">
+                <label for="file-input">Upload Document</label>
+                <div class="portal-file-drop" id="file-drop-zone"
+                    onclick="document.getElementById('file-input').click()">
+                    <div class="portal-file-drop-content" id="file-drop-content">
+                        <span class="portal-file-drop-icon">📁</span>
+                        <p>Click to select or drag & drop a file here</p>
+                        <span class="form-hint">Supports: .docx, .xlsx, .pptx, .odt, .ods, .html, .txt, .md</span>
+                    </div>
+                    <input type="file" id="file-input" name="file"
+                        accept=".docx,.xlsx,.pptx,.odt,.ods,.html,.txt,.md,.csv,.rtf" required style="display:none;"
+                        onchange="updateFileName(this)">
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary" id="submit-file">⚡ Generate PDF</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function switchTab(mode) {
+        // Update tabs
+        document.querySelectorAll('.portal-tab').forEach(t => t.classList.remove('active'));
+        document.querySelector('[data-tab="' + mode + '"]').classList.add('active');
+        // Update panels
+        document.querySelectorAll('.portal-mode-card').forEach(c => c.style.display = 'none');
+        document.getElementById('mode-' + mode).style.display = 'block';
+    }
+
+    function updateFileName(input) {
+        var content = document.getElementById('file-drop-content');
+        if (input.files.length > 0) {
+            content.innerHTML = '<span class="portal-file-drop-icon">✅</span><p>' + input.files[0].name + '</p><span class="form-hint">Click to change file</span>';
+        }
+    }
+
+    // Drag and drop
+    var dropZone = document.getElementById('file-drop-zone');
+    if (dropZone) {
+        ['dragenter', 'dragover'].forEach(function (evt) {
+            dropZone.addEventListener(evt, function (e) { e.preventDefault(); dropZone.classList.add('drag-over'); });
+        });
+        ['dragleave', 'drop'].forEach(function (evt) {
+            dropZone.addEventListener(evt, function (e) { e.preventDefault(); dropZone.classList.remove('drag-over'); });
+        });
+        dropZone.addEventListener('drop', function (e) {
+            var fileInput = document.getElementById('file-input');
+            fileInput.files = e.dataTransfer.files;
+            updateFileName(fileInput);
+        });
+    }
+</script>
+{{end}}

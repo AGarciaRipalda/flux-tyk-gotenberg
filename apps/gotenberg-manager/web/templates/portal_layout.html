@@ -1,0 +1,53 @@
+{{define "portal_layout.html"}}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gotenberg Portal</title>
+    <meta name="description" content="Generate PDFs and manage your subscription on the Gotenberg Portal">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body class="portal-body">
+    <nav class="portal-navbar" id="portal-nav">
+        <div class="portal-nav-left">
+            <a href="/portal" class="portal-brand">
+                <span class="portal-brand-icon">📄</span>
+                <span class="portal-brand-text">Gotenberg <small>Portal</small></span>
+            </a>
+            <div class="portal-nav-links">
+                <a href="/portal" class="portal-nav-link" id="portal-nav-dashboard">
+                    <span>📊</span> Dashboard
+                </a>
+                <a href="/portal/generate" class="portal-nav-link" id="portal-nav-generate">
+                    <span>⚡</span> Generate PDF
+                </a>
+                <a href="/portal/subscription" class="portal-nav-link" id="portal-nav-subscription">
+                    <span>💎</span> Subscription
+                </a>
+            </div>
+        </div>
+        <div class="portal-nav-right">
+            <div class="portal-user-info" id="portal-user-info">
+                <span class="portal-user-avatar">👤</span>
+                <span class="portal-user-name">{{template "clientName" .}}</span>
+            </div>
+            <form method="POST" action="/portal/logout" style="display:inline;">
+                <button type="submit" class="btn btn-sm btn-secondary" id="portal-logout">Logout</button>
+            </form>
+        </div>
+    </nav>
+    <main class="portal-content">
+        {{template "portal-content" .}}
+    </main>
+</body>
+
+</html>
+{{end}}
+
+{{define "clientName"}}{{end}}
