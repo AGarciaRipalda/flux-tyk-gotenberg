@@ -128,6 +128,8 @@ kind: Service
 metadata:
   name: gotenberg-manager
   namespace: gotenberg-manager
+  labels:
+    app: gotenberg-manager
 spec:
   selector:
     app: gotenberg-manager
