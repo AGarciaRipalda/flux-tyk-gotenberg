@@ -9,7 +9,9 @@ spec:
   interval: 1m0s
   ref:
     branch: main
-  url: https://github.com/AGarciaRipalda/flux-tyk-gotenberg
+  secretRef:
+    name: flux-system
+  url: ssh://git@github.com/AGarciaRipalda/flux-tyk-gotenberg
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
