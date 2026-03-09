@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD Pipeline
 
 on:
   push:
@@ -7,64 +7,66 @@ on:
     branches: [main]
 
 jobs:
-  build-and-test-go:
+  # 1. Validar el código Go
+  test-go:
     name: Build and Test Go App
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: apps/gotenberg-manager
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: "1.23"
           cache-dependency-path: apps/gotenberg-manager/go.sum
-
       - name: Install dependencies
         run: go mod download
-
       - name: Build
         run: go build -v ./cmd/server
-
       - name: Test
         run: go test -v ./...
 
-  docker-build:
-    name: Test Docker Build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build Gotenberg Manager Image
-        working-directory: apps/gotenberg-manager
-        run: docker build -t gotenberg-manager:test .
-
-  validate-kubernetes:
+  # 2. Validar Manifiestos de Kubernetes (Kustomize)
+  validate-k8s:
     name: Validate Kubernetes Manifests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup Kustomize
         uses: imranismail/setup-kustomize@v2
         with:
           kustomize-version: "5.3.0"
-
       - name: Validate Cluster Kustomizations
         run: |
-          for dir in apps/*/; do
+          for dir in apps/*/ clusters/my-cluster/*/; do
             if [ -f "$dir/kustomization.yaml" ]; then
               echo "Validating $dir..."
               kustomize build "$dir" > /dev/null
             fi
           done
 
-          for dir in clusters/my-cluster/*/; do
-            if [ -f "$dir/kustomization.yaml" ]; then
-              echo "Validating $dir..."
-              kustomize build "$dir" > /dev/null
-            fi
-          done
+  # 3. Construir y Subir a Docker Hub (Solo si pasan los anteriores)
+  docker-release:
+    name: Build and Push Docker Image
+    needs: [test-go, validate-k8s] # Espera a que los tests pasen
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/gotenberg-manager
+          push: true
+          tags: |
+            agarciaripalda/gotenberg-manager:latest
+            agarciaripalda/gotenberg-manager:${{ github.sha }}
