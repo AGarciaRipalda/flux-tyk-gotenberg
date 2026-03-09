@@ -1,0 +1,50 @@
+---
+# 1. Escáner: Revisa Docker Hub cada 5 minutos
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageRepository
+metadata:
+  name: gotenberg-manager
+  namespace: flux-system
+spec:
+  image: agarciaripalda/gotenberg-manager
+  interval: 5m
+
+---
+# 2. Política: Define qué etiqueta es la "más nueva" 
+# (En este caso, la última creada alfabéticamente/temporalmente)
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImagePolicy
+metadata:
+  name: gotenberg-manager
+  namespace: flux-system
+spec:
+  selection:
+    alphabetical:
+      order: asc
+
+---
+# 3. Automatización: Permite a Flux hacer commits en tu GitHub
+apiVersion: image.toolkit.fluxcd.io/v1beta1
+kind: ImageUpdateAutomation
+metadata:
+  name: gotenberg-manager-automation
+  namespace: flux-system
+spec:
+  interval: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  git:
+    checkout:
+      ref:
+        branch: main
+    commit:
+      author:
+        email: fluxcdbot@users.noreply.github.com
+        name: fluxcdbot
+      messageTemplate: 'chore(infra): update gotenberg-manager image to {{index .Updated.Images 0}}'
+    push:
+      branch: main
+  update:
+    path: ./apps/gotenberg-manager/k8s # Ajusta esta ruta a donde esté tu deployment.yaml
+    strategy: Setters
