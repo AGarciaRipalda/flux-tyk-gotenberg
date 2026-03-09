@@ -181,11 +181,11 @@ A custom **Go microservice** that adds client management, usage tracking, and re
 |---|---|
 | **Health Monitoring** | Background goroutine polls Gotenberg `/health` every 30s, stores history in DB |
 | **Client Management** | Full CRUD with API key generation, password auth, plan assignment, and activation/deactivation |
-| **Tyk Integration** | Auto-creates/deletes API keys in Tyk when managing clients |
-| **Usage Tracking** | Per-client counters: today, this month, total — with configurable monthly limits |
+| **Tyk Integration** | Auto-creates/deletes Tyk API keys when managing clients |
+| **Usage Tracking** | Per-client counters (today, this month, total) for **Portal** conversions |
 | **Admin Dashboard** | Dark-themed admin panel with stats cards, progress bars, and activity tables |
 | **Client Portal** | Web portal for clients to log in (email+password), generate PDFs directly (URL/HTML/File), and view their quota |
-| **Security** | Admin API protected by Bearer token; Portal protected by HMAC session cookies; Clients identified by API keys for Tyk access |
+| **Security** | Admin API protected by Bearer token; Portal protected by session cookies; Tyk enforces its own rate limits via `tyk_key_id` |
 
 ### Tech Stack
 
@@ -265,30 +265,23 @@ curl -X POST http://localhost:9090/api/clients \
   -d '{"name":"Acme Corp","email":"admin@acme.com","plan":"pro"}'
 ```
 
-### Example: Generate a PDF via Tyk
+### Example: Generate a PDF directly via Tyk API Gateway
+
+Clients wanting to bypass the visual portal and integrate programmatically can hit Tyk directly using their Tyk Key:
 
 ```bash
-# 1. Mint an API key
-curl -X POST -H "x-tyk-authorization: foo" -s \
-  -H "Content-Type: application/json" \
-  -d '{
-    "allowance": 1000, "rate": 100, "per": 60,
-    "expires": -1, "quota_max": -1, "org_id": "default",
-    "access_rights": {
-      "gotenberg-v1": {
-        "api_id": "gotenberg-v1",
-        "api_name": "Gotenberg PDF API",
-        "versions": ["Default"]
-      }
-    }
-  }' http://localhost:8080/tyk/keys/create
+# 1. Administrator creates the client in Gotenberg Manager (see above)
+# The response will contain a "tyk_key_id" (e.g., "eyJvc...") and an internal "api_key" (e.g., "gm_...").
+# Provide the "tyk_key_id" to the client.
 
-# 2. Use the "key" from the step 1 response to convert a URL to PDF
+# 2. Client uses their "tyk_key_id" to convert a URL to PDF via Tyk
 curl -X POST http://localhost:8080/pdf/forms/chromium/convert/url \
-  -H "Authorization: eyJvcm...YOUR_TYK_KEY_HERE" \
+  -H "Authorization: YOUR_TYK_KEY_HERE" \
   -F url="https://example.com" \
   -o output.pdf
 ```
+
+> **Note:** Conversions made directly through Tyk are rate-limited by Tyk up to the client's `monthly_limit`. Conversions made through the **Client Portal** are rate-limited and meticulously tracked by Gotenberg Manager, appearing on the client's visual dashboards.
 
 ---
 
