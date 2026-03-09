@@ -1,3 +1,5 @@
+![CI Status](https://github.com/AGarciaRipalda/flux-tyk-gotenberg/actions/workflows/ci.yml/badge.svg)
+
 # Flux-Tyk-Gotenberg
 
 A production-ready, GitOps-driven **PDF generation platform** built on Kubernetes. It combines [Gotenberg](https://gotenberg.dev/) as the conversion engine, [Tyk](https://tyk.io/) as the API gateway, and a custom **Gotenberg Manager** app for client management, usage tracking, and monitoring — all deployed declaratively with [Flux CD](https://fluxcd.io/).
