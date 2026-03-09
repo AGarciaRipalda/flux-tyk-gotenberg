@@ -102,6 +102,7 @@ spec:
       containers:
         - name: gotenberg-manager
           image: gotenberg-manager:latest
+          imagePullPolicy: Never
           ports:
             - containerPort: 9090
           envFrom:
