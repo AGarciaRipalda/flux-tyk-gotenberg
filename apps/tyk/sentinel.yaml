@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gotenberg-sentinel-script
+  namespace: tyk
+data:
+  test.sh: |
+    #!/bin/sh
+    set -e
+    echo "🤖 Waking up Sentinel... Testing PDF Pipeline"
+    
+    # 1. Ask Tyk for a temporary token
+    echo "🔑 Minting temporary API key..."
+    RESPONSE=$(curl -s -X POST -H "x-tyk-authorization: foo" -H "Content-Type: application/json" -d '{
+      "allowance": 10, "rate": 10, "per": 60, "expires": 300, "org_id": "default",
+      "access_rights": {"gotenberg-v1": {"api_id": "gotenberg-v1", "versions": ["Default"]}}
+    }' http://tyk-gateway:8080/tyk/keys/create)
+    
+    # Parse the key out of the JSON response
+    KEY=$(echo $RESPONSE | jq -r '.key')
+    
+    if [ "$KEY" = "null" ] || [ -z "$KEY" ]; then
+      echo "❌ FATAL: Failed to mint API key. Redis might be down."
+      exit 1
+    fi
+    
+    # 2. Fire the PDF Request
+    echo "📄 Key obtained. Requesting PDF from Gotenberg..."
+    HTTP_STATUS=$(curl -s -o /tmp/test.pdf -w "%{http_code}" -X POST http://tyk-gateway:8080/pdf/forms/chromium/convert/url -H "Authorization: $KEY" -F url="https://example.com")
+    
+    # 3. Verify the output
+    if [ "$HTTP_STATUS" -eq 200 ]; then
+      FILE_SIZE=$(wc -c < /tmp/test.pdf | tr -d ' ')
+      echo "✅ SUCCESS! PDF generated perfectly. Size: $FILE_SIZE bytes."
+      exit 0
+    else
+      echo "❌ FATAL: Gateway returned HTTP $HTTP_STATUS"
+      exit 1
+    fi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: gotenberg-sentinel
+  namespace: tyk
+spec:
+  schedule: "*/10 * * * *" # Runs every 10 minutes
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: sentinel
+            image: alpine:latest
+            command: ["/bin/sh", "-c"]
+            # Install curl and jq, then run our script
+            args: ["apk add --no-cache curl jq && sh /opt/scripts/test.sh"]
+            volumeMounts:
+            - name: script-volume
+              mountPath: /opt/scripts
+          restartPolicy: OnFailure
+          volumes:
+          - name: script-volume
+            configMap:
+              name: gotenberg-sentinel-script
