@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -281,6 +282,7 @@ func (h *PortalHandler) GenerateSubmit(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("PDF generation error: %v", err)
 		h.usageSvc.Record(ctx, clientID, endpoint, 500, elapsed)
+		middleware.PdfConversionsTotal.WithLabelValues(mode, "500").Inc()
 		http.Redirect(w, r, "/portal/generate?error=PDF+generation+failed:+"+err.Error(), http.StatusSeeOther)
 		return
 	}
@@ -288,6 +290,7 @@ func (h *PortalHandler) GenerateSubmit(w http.ResponseWriter, r *http.Request) {
 
 	// Record usage
 	h.usageSvc.Record(ctx, clientID, endpoint, gotenbergResp.StatusCode, elapsed)
+	middleware.PdfConversionsTotal.WithLabelValues(mode, strconv.Itoa(gotenbergResp.StatusCode)).Inc()
 
 	if gotenbergResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(gotenbergResp.Body)

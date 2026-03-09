@@ -19,6 +19,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -90,9 +91,13 @@ func main() {
 	r.Use(chimw.Recoverer)
 	r.Use(chimw.RealIP)
 	r.Use(middleware.RequestLogger)
+	r.Use(middleware.MetricsMiddleware)
 
 	// Health endpoint (public)
 	r.Get("/health", healthHandler.GetHealth)
+
+	// Prometheus Metrics endpoint (public)
+	r.Handle("/metrics", promhttp.Handler())
 
 	// Static files
 	fileServer := http.FileServer(http.Dir(staticDir))
