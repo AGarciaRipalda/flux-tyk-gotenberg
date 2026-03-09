@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gotenberg-manager-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  gotenberg-manager.json: |-
+    {
+      "title": "Gotenberg Manager",
+      "uid": "gotenberg-manager-dashboard",
+      "tags": [ "gotenberg", "go" ],
+      "timezone": "browser",
+      "schemaVersion": 38,
+      "panels": [
+        {
+          "type": "timeseries",
+          "title": "HTTP Request Rate",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "targets": [
+            { "expr": "sum by(method, status) (rate(http_requests_total[5m]))", "legendFormat": "{{method}} - HTTP {{status}}" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "PDF Conversions (Rate)",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "targets": [
+            { "expr": "sum by(mode, status) (rate(pdf_conversions_total[5m]))", "legendFormat": "{{mode}} - HTTP {{status}}" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "HTTP Request Latency (p95)",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [
+            { "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95 Latency" }
+          ]
+        },
+        {
+          "type": "stat",
+          "title": "Total PDF Conversions",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            { "expr": "sum(pdf_conversions_total)", "legendFormat": "Total" }
+          ]
+        }
+      ]
+    }
