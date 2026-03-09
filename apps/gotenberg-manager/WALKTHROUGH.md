@@ -342,26 +342,34 @@ curl -X POST http://localhost:9090/api/clients \
   -H "Content-Type: application/json" \
   -d '{"name":"Acme Corp","email":"admin@acme.com","password":"secreto123","plan":"pro"}'
 
-# --- USANDO EL SERVICIO COMO CLIENTE (vía Tyk con curl) ---
-# Generar un PDF consumiendo Tyk con la llave Tyk generada
+### Usar el Servicio como Cliente (vía API Gateway Tyk)
+
+Los clientes que quieran programar integraciones (en lugar de usar el Portal visual) pueden atacar a Tyk directamente:
+
+```bash
+# 1. El administrador crea el cliente en Gotenberg Manager (Dashboard o API)
+# La respuesta de la API o la vista de detalle en el Dashboard mostrará un "Tyk Key ID"
+# Proporciona esta llave al cliente. No uses el "API Key" interno (gm_...) para Tyk.
+
+# 2. El cliente usa su "Tyk Key ID" para convertir URLs a PDF vía Tyk
 curl -X POST http://localhost:8080/pdf/forms/chromium/convert/url \
-  -H "Authorization: eyJvcm...TYK_KEY_AQUI" \
+  -H "Authorization: YOUR_TYK_KEY_HERE" \
   -F url="https://example.com" \
   -o output.pdf
 
-# Listar clientes
+# Listar clientes (como Admin)
 curl -H "Authorization: Bearer admin-secret" \
   http://localhost:9090/api/clients
 
-# Ver uso de un cliente
+# Ver uso de un cliente (como Admin)
 curl -H "Authorization: Bearer admin-secret" \
   http://localhost:9090/api/clients/{ID}/usage
 
-# Resumen global
+# Resumen global (como Admin)
 curl -H "Authorization: Bearer admin-secret" \
   http://localhost:9090/api/usage/summary
 
-# Rotar API key
+# Rotar API key (como Admin)
 curl -X POST -H "Authorization: Bearer admin-secret" \
   http://localhost:9090/api/clients/{ID}/rotate-key
 ```
