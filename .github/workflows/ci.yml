@@ -34,25 +34,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup Kustomize
         uses: imranismail/setup-kustomize@v2
         with:
           kustomize-version: "5.3.0"
-
       - name: Validate Cluster Kustomizations
         run: |
           # Solo valida si existe el archivo kustomization.yaml en la carpeta
           find apps/ clusters/ -name "kustomization.yaml" -execdir echo "Validating {} in $(pwd)..." \; -execdir kustomize build . > /dev/null \;
 
-  # 3. Construir y Subir a Docker Hub (Solo si pasan los anteriores)
+  # 3. Construir y Subir a Docker Hub (Solo en push a main)
   docker-release:
     name: Build and Push Docker Image
-    needs: [test-go, validate-kubernetes] # Espera a que los tests pasen
+    needs: [test-go, validate-kubernetes]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ESTO ES LO QUE HE AÑADIDO: Verifica si los secretos existen antes de fallar
+      - name: Check Secrets Presence
+        run: |
+          if [ -z "${{ secrets.DOCKER_USERNAME }}" ]; then
+            echo "::error::El secreto DOCKER_USERNAME está vacío o no existe en Settings > Secrets > Actions"
+            exit 1
+          fi
+          if [ -z "${{ secrets.DOCKER_PASSWORD }}" ]; then
+            echo "::error::El secreto DOCKER_PASSWORD está vacío o no existe en Settings > Secrets > Actions"
+            exit 1
+          fi
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -66,5 +80,5 @@ jobs:
           context: ./apps/gotenberg-manager
           push: true
           tags: |
-            agarciaripalda/gotenberg-manager:latest
-            agarciaripalda/gotenberg-manager:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/gotenberg-manager:latest
+            ${{ secrets.DOCKER_USERNAME }}/gotenberg-manager:${{ github.sha }}
